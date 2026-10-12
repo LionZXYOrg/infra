@@ -1,0 +1,91 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: warden
+spec:
+  releaseName: warden
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: vaultwarden
+      version: 0.46.3
+      sourceRef:
+        kind: HelmRepository
+        name: charts-vaultwarden
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    fullnameOverride: warden
+    image:
+      registry: docker.io
+      repository: vaultwarden/server
+      tag: 1.35.2-alpine@sha256:dc364d362273e5604b13b02059dc98d60471e885c0a831e26be6c05ed5d488d0
+    replicas: 1
+    resourceType: Deployment
+    strategy:
+      type: Recreate
+    domain: https://warden.test.kulikov.uk
+    signupsAllowed: false
+    signupsVerify: 'false'
+    invitationsAllowed: true
+    webVaultEnabled: 'true'
+    enableServiceLinks: false
+    adminToken:
+      existingSecret: warden-config
+      existingSecretKey: ADMIN_TOKEN
+    smtp:
+      existingSecret: warden-config
+    pushNotifications:
+      existingSecret: warden-config
+      enabled: false
+    yubico:
+      existingSecret: warden-config
+    duo:
+      existingSecret: warden-config
+    storage:
+      existingVolumeClaim:
+        claimName: warden-data
+        dataPath: /data
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 256Mi
+    startupProbe:
+      enabled: true
+      failureThreshold: 30
+      path: /alive
+    livenessProbe:
+      enabled: true
+      path: /alive
+    readinessProbe:
+      enabled: true
+      path: /alive
+    ingress:
+      enabled: false
+  postRenderers:
+  - kustomize:
+      patches:
+      - target:
+          kind: Deployment
+          name: warden
+        patch: "- op: add\n  path: /spec/template/spec/automountServiceAccountToken\n\
+          \  value: false\n"

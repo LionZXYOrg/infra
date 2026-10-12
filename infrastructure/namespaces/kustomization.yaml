@@ -4,3 +4,4 @@ resources:
 - cert-manager.yaml
 - demo.yaml
 - traefik.yaml
+- warden.yaml
