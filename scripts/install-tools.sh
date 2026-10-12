@@ -5,7 +5,10 @@ set +x
 umask 077
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/bootstrap/versions.env"
-[[ $(id -u) != 0 ]] || { echo 'Run as a regular user, without sudo.' >&2; exit 1; }
+if [[ $(uname -s) == Darwin && $(id -u) -eq 0 ]]; then
+  echo 'On macOS run as a normal user; root is supported on Linux.' >&2
+  exit 1
+fi
 case "$(uname -s)" in Darwin) os=darwin ;; Linux) os=linux ;; *) exit 1 ;; esac
 case "$(uname -m)" in x86_64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; *) exit 1 ;; esac
 for tool in curl tar python3; do command -v "$tool" >/dev/null; done

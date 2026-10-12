@@ -100,9 +100,10 @@ def obtain_kubeconfig(ssh: str | None, ip: str, node: str, version: str,
             try:
                 remote_file = remote + '/kubeconfig'
                 if fetch_only:
-                    command = ('umask 077; sudo -v && sudo install -m 0600 '
-                               '-o "$(id -u)" -g "$(id -g)" '
-                               '/etc/rancher/k3s/k3s.yaml ' + shlex.quote(remote_file))
+                    copy_cmd = ('install -m 0600 -o "$(id -u)" -g "$(id -g)" '
+                                '/etc/rancher/k3s/k3s.yaml ' + shlex.quote(remote_file))
+                    command = ('umask 077; if [ "$(id -u)" -eq 0 ]; then '
+                               + copy_cmd + '; else sudo -v && sudo ' + copy_cmd + '; fi')
                 else:
                     visible(['scp', str(ROOT / 'scripts/provision-server.sh'),
                              f'{ssh}:{remote}/provision-server.sh'])
@@ -122,8 +123,10 @@ def obtain_kubeconfig(ssh: str | None, ip: str, node: str, version: str,
         else:
             require(sys.platform == 'linux', 'On macOS pass --ssh USER@SERVER. K3s cannot be installed here.')
             if fetch_only:
-                visible(['sudo', 'install', '-m', '0600', '-o', str(os.getuid()), '-g', str(os.getgid()),
-                         '/etc/rancher/k3s/k3s.yaml', str(raw_file)])
+                privilege = [] if os.geteuid() == 0 else ['sudo']
+                visible(privilege + ['install', '-m', '0600', '-o', str(os.getuid()),
+                                     '-g', str(os.getgid()),
+                                     '/etc/rancher/k3s/k3s.yaml', str(raw_file)])
             else:
                 visible(['bash', str(ROOT / 'scripts/provision-server.sh'), ip, node, version, str(raw_file)])
         encoded = normalize_kubeconfig(raw_file.read_bytes(), ip)
@@ -180,7 +183,8 @@ def main() -> None:
                         help='Refresh only the dedicated admin kubeconfig; no K3s/Flux/secret changes.')
     args = parser.parse_args()
     require(sys.platform in {'linux', 'darwin'}, 'Supported workstations: Linux and macOS.')
-    require(os.getuid() != 0, 'Run without sudo.')
+    require(not (sys.platform == 'darwin' and os.getuid() == 0),
+            'On macOS run as your normal user; root is supported on Linux.')
     require(args.ssh is not None or sys.platform == 'linux', 'On macOS supply --ssh USER@SERVER.')
     if args.ssh:
         require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.@-]*', args.ssh) is not None,
