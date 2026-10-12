@@ -24,6 +24,9 @@ class FixtureTests(unittest.TestCase):
         template.parent.mkdir(parents=True)
         repository = Path(__file__).resolve().parents[1]
         template.write_bytes((repository / 'tests/isolated/secrets-source.yaml').read_bytes())
+        (template.parent / 'kustomization.yaml').write_text(yaml.safe_dump({
+            'apiVersion': 'kustomize.config.k8s.io/v1beta1', 'kind': 'Kustomization',
+            'resources': ['secrets-source.yaml']}))
         (self.source / 'public.txt').write_text('public')
         self.git('add', '.')
         self.git('-c', 'user.name=CI test', '-c', 'user.email=ci@example.invalid',
@@ -103,6 +106,17 @@ class FixtureTests(unittest.TestCase):
                     self.fixture()
                 self.git('rm', '--cached', name)
                 path.unlink()
+
+    def test_active_migration_cannot_enter_disposable_fixture(self):
+        contracts = self.source / 'tests/migrations'
+        contracts.mkdir()
+        (contracts / 'example.yaml').write_text('workloads: 1\n')
+        cluster = self.source / 'clusters/home'
+        cluster.mkdir(parents=True)
+        (cluster / 'example.yaml').write_text('spec: {suspend: false}\n')
+        self.git('add', '.')
+        with self.assertRaisesRegex(ValueError, 'active migration'):
+            self.fixture()
 
 
 class EnvironmentTests(unittest.TestCase):

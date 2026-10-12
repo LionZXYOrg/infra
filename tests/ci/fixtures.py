@@ -98,6 +98,18 @@ class FixtureSet:
         obj = yaml.safe_load(source_path.read_text())
         obj['spec'].update(url=fixture.secrets_url, ref={'branch': 'main'}, recurseSubmodules=False)
         source_path.write_text(yaml.safe_dump(obj, sort_keys=False))
+        # Test the preparation locks through Flux without starting real applications.
+        isolated_root = infra / 'tests/isolated/kustomization.yaml'
+        isolated = yaml.safe_load(isolated_root.read_text())
+        for contract in sorted((infra / 'tests/migrations').glob('*.yaml')):
+            name = contract.stem
+            migration = yaml.safe_load((infra / 'clusters/home' / f'{name}.yaml').read_text())
+            if migration['spec'].get('suspend') is not True:
+                raise ValueError('Refusing an active migration in disposable preparation tests')
+            destination = f'migration-{name}.yaml'
+            (isolated_root.parent / destination).write_text(yaml.safe_dump(migration, sort_keys=False))
+            isolated['resources'].append(destination)
+        isolated_root.write_text(yaml.safe_dump(isolated, sort_keys=False))
         (private / 'kustomization.yaml').write_text(yaml.safe_dump({
             'apiVersion': 'kustomize.config.k8s.io/v1beta1', 'kind': 'Kustomization',
             'resources': ['probe.sops.yaml']}))

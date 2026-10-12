@@ -86,12 +86,21 @@ for tool in "$@"; do
       tar -xzf "$dir/$name" -C "$dir" gitleaks
       binary="$dir/gitleaks"
       ;;
+    helm)
+      name="helm-${HELM_VERSION}-${os}-${arch}.tar.gz"
+      base="https://get.helm.sh"
+      fetch "$base/$name" "$dir/$name"
+      fetch "$base/$name.sha256sum" "$dir/checksums.txt"
+      verify "$dir/$name" "$dir/checksums.txt"
+      tar -xzf "$dir/$name" -C "$dir" "$os-$arch/helm"
+      binary="$dir/$os-$arch/helm"
+      ;;
     *) echo "Unknown tool: $tool" >&2; exit 1 ;;
   esac
   install -m 0755 "$binary" "$DEST/$tool"
   if [[ $tool == kubectl ]]; then
     "$DEST/$tool" version --client
-  elif [[ $tool == gitleaks ]]; then
+  elif [[ $tool == gitleaks || $tool == helm ]]; then
     "$DEST/$tool" version
   else
     "$DEST/$tool" --version

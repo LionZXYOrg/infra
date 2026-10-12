@@ -63,6 +63,7 @@ class DeploymentTests(unittest.TestCase):
 
     def test_deployment_checks_initial_update_and_repeat_reconciliation(self):
         fixture = unittest.mock.Mock(infra_revision='infra-revision', secrets_revision='secret-revision')
+        fixture.infra_path = self.work
         fixture.bootstrap_objects.return_value = []
         with patch.object(self.runner, 'verify_fresh_cluster'), \
                 patch.object(self.runner, 'kube', return_value=b''), \
@@ -81,6 +82,24 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(isolated.call_count, 2)
         self.assertEqual([call.args[0][2] for call in flux.call_args_list], ['cluster-secrets', 'flux-system'])
         self.assertIn('repeat-reconciliation', report['passed'])
+
+    def test_prepared_migration_must_be_suspended_without_pods_or_releases(self):
+        directory = self.work / 'tests/migrations'
+        directory.mkdir(parents=True)
+        (directory / 'example.yaml').write_text('workloads: 1\n')
+        fixture = unittest.mock.Mock(infra_path=self.work)
+        for suspended, pods, releases in [(True, [], []), (False, [], []),
+                                         (True, [{'metadata': {'name': 'app'}}], []),
+                                         (True, [], [{'metadata': {'name': 'app'}}])]:
+            responses = [json.dumps({'spec': {'suspend': suspended}}).encode(),
+                         json.dumps({'items': pods}).encode(), json.dumps({'items': releases}).encode()]
+            with self.subTest(suspended=suspended, pods=bool(pods), releases=bool(releases)), \
+                    patch.object(self.runner, 'kube', side_effect=responses):
+                if suspended and not pods and not releases:
+                    self.runner.verify_migrations_suspended(fixture)
+                else:
+                    with self.assertRaises(RuntimeError):
+                        self.runner.verify_migrations_suspended(fixture)
 
     def test_acme_issuer_fails_isolation(self):
         issuer = {'items': [{'metadata': {'name': 'production'}, 'spec': {'acme': {'server': 'url'}}}]}

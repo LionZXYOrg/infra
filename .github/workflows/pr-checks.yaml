@@ -32,12 +32,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y age
           python -m pip install -r requirements.txt
-          bash scripts/install-tools.sh sops kubectl gitleaks
+          bash scripts/install-tools.sh sops kubectl gitleaks helm
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Unit and regression tests
         run: python -m unittest discover -s tests -v
       - name: Public manifest and script validation
         run: bash scripts/check.sh
+      - name: Render pinned migration charts and verify workload contracts
+        run: python scripts/migration_check.py --render
       - name: Scan public history for credentials
         run: gitleaks git --redact=100 --log-opts=--all .
 

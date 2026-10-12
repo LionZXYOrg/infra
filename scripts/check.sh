@@ -74,7 +74,8 @@ for item in paths.split(b'\0'):
 print('Local YAML references and staged Secret manifests checked.')
 PYCHECK
 if command -v kubectl >/dev/null 2>&1; then
-  for dir in infrastructure/namespaces infrastructure/controllers infrastructure/issuers infrastructure/tls apps/demo; do
+  for dir in infrastructure/namespaces infrastructure/controllers infrastructure/issuers infrastructure/tls apps/*; do
+    [[ -f $dir/kustomization.yaml ]] || continue
     kubectl kustomize "$dir" >/dev/null
   done
   if [[ -f secrets/.git ]]; then kubectl kustomize secrets >/dev/null; fi
@@ -91,6 +92,7 @@ if command -v kubectl >/dev/null 2>&1; then
 else
   echo 'INFO: kubectl is absent; Kustomize builds are deferred.'
 fi
+python3 scripts/migration_check.py
 git diff --check
 git diff --cached --check
 echo 'Checks passed. This is not a general-purpose secret scanner; review the diff.'
