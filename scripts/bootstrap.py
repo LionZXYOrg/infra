@@ -100,9 +100,10 @@ def obtain_kubeconfig(ssh: str | None, ip: str, node: str, version: str,
             try:
                 remote_file = remote + '/kubeconfig'
                 if fetch_only:
-                    command = ('umask 077; sudo -v && sudo install -m 0600 '
-                               '-o "$(id -u)" -g "$(id -g)" '
-                               '/etc/rancher/k3s/k3s.yaml ' + shlex.quote(remote_file))
+                    copy_cmd = ('install -m 0600 -o "$(id -u)" -g "$(id -g)" '
+                                '/etc/rancher/k3s/k3s.yaml ' + shlex.quote(remote_file))
+                    command = ('umask 077; if [ "$(id -u)" -eq 0 ]; then '
+                               + copy_cmd + '; else sudo -v && sudo ' + copy_cmd + '; fi')
                 else:
                     visible(['scp', str(ROOT / 'scripts/provision-server.sh'),
                              f'{ssh}:{remote}/provision-server.sh'])
@@ -122,8 +123,10 @@ def obtain_kubeconfig(ssh: str | None, ip: str, node: str, version: str,
         else:
             require(sys.platform == 'linux', 'On macOS pass --ssh USER@SERVER. K3s cannot be installed here.')
             if fetch_only:
-                visible(['sudo', 'install', '-m', '0600', '-o', str(os.getuid()), '-g', str(os.getgid()),
-                         '/etc/rancher/k3s/k3s.yaml', str(raw_file)])
+                privilege = [] if os.geteuid() == 0 else ['sudo']
+                visible(privilege + ['install', '-m', '0600', '-o', str(os.getuid()),
+                                     '-g', str(os.getgid()),
+                                     '/etc/rancher/k3s/k3s.yaml', str(raw_file)])
             else:
                 visible(['bash', str(ROOT / 'scripts/provision-server.sh'), ip, node, version, str(raw_file)])
         encoded = normalize_kubeconfig(raw_file.read_bytes(), ip)
@@ -134,7 +137,36 @@ def obtain_kubeconfig(ssh: str | None, ip: str, node: str, version: str,
     return dest
 
 
-def bootstrap_flux(kubeconfig: Path, identity: bytes, owner: str, repo: str, version: str) -> None:
+def repository_target(info: dict, branch_override: str = '') -> tuple[str, bool]:
+    """Use one branch and owner type for both Git checks and Flux bootstrap."""
+    branch = branch_override or info.get('default_branch')
+    require(isinstance(branch, str) and bool(branch)
+            and not branch.startswith('-') and branch != 'HEAD',
+            'Set GITHUB_BRANCH or provide a repository with a default branch.')
+    # Validate the literal ref. Do not expand checkout shorthand or accept options.
+    capture(['git', 'check-ref-format', f'refs/heads/{branch}'])
+    owner_type = info.get('owner', {}).get('type')
+    require(owner_type in {'User', 'Organization'}, 'Unsupported GitHub repository owner type.')
+    return branch, owner_type == 'User'
+
+
+def check_checkout(owner: str, repo: str, branch: str) -> None:
+    """Reject the wrong checkout before decrypting secrets or changing the host."""
+    current = capture(['git', 'branch', '--show-current']).decode().strip()
+    require(current == branch, f'Check out {branch} before bootstrap.')
+    require(not capture(['git', 'status', '--porcelain']).strip(), 'Commit and push all changes first.')
+    origin = capture(['git', 'remote', 'get-url', 'origin']).decode().strip()
+    require(origin in {f'https://github.com/{owner}/{repo}', f'https://github.com/{owner}/{repo}.git',
+                       f'git@github.com:{owner}/{repo}.git', f'ssh://git@github.com/{owner}/{repo}.git'},
+            'origin does not match bootstrap/settings.env.')
+    # Fetch an explicit branch ref, not a tag or a stale remote-tracking ref.
+    capture(['git', 'fetch', 'origin', f'refs/heads/{branch}'])
+    require(capture(['git', 'rev-parse', 'HEAD']) == capture(['git', 'rev-parse', 'FETCH_HEAD']),
+            f'Local {branch} differs from the fetched origin branch.')
+
+
+def bootstrap_flux(kubeconfig: Path, identity: bytes, owner: str, repo: str, version: str,
+                   *, branch: str, personal: bool) -> None:
     env = os.environ.copy()
     env['KUBECONFIG'] = str(kubeconfig)
     # No secret env is passed to arbitrary git/ssh processes.
@@ -159,11 +191,11 @@ def bootstrap_flux(kubeconfig: Path, identity: bytes, owner: str, repo: str, ver
     token = capture(['gh', 'auth', 'token', '--hostname', 'github.com']).decode().strip()
     flux_env = {**env, 'GITHUB_TOKEN': token}
     visible(['flux', 'bootstrap', 'github', f'--owner={owner}', f'--repository={repo}',
-             '--personal=true', '--private=true', '--branch=main', '--path=clusters/home',
-             f'--version={version}', '--interval=1m', '--token-auth=false',
+             f'--personal={str(personal).lower()}', '--private=true', f'--branch={branch}',
+             '--path=clusters/home', f'--version={version}', '--interval=1m', '--token-auth=false',
              '--read-write-key=false', '--ssh-key-algorithm=ed25519'], env=flux_env)
     del flux_env, token
-    visible(['git', 'pull', '--ff-only', 'origin', 'main'], env=env)
+    visible(['git', 'pull', '--ff-only', 'origin', f'refs/heads/{branch}'], env=env)
     visible(['flux', 'reconcile', 'kustomization', 'flux-system', '--with-source', '--timeout=20m'], env=env)
     visible(kube + ['-n', 'flux-system', 'wait', 'kustomizations.kustomize.toolkit.fluxcd.io',
                     '--all', '--for=condition=Ready', '--timeout=30m'], env=env)
@@ -180,7 +212,8 @@ def main() -> None:
                         help='Refresh only the dedicated admin kubeconfig; no K3s/Flux/secret changes.')
     args = parser.parse_args()
     require(sys.platform in {'linux', 'darwin'}, 'Supported workstations: Linux and macOS.')
-    require(os.getuid() != 0, 'Run without sudo.')
+    require(not (sys.platform == 'darwin' and os.getuid() == 0),
+            'On macOS run as your normal user; root is supported on Linux.')
     require(args.ssh is not None or sys.platform == 'linux', 'On macOS supply --ssh USER@SERVER.')
     if args.ssh:
         require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.@-]*', args.ssh) is not None,
@@ -196,18 +229,11 @@ def main() -> None:
         require(owner != 'YOUR_GITHUB_LOGIN' and re.fullmatch(r'[A-Za-z0-9-]+', owner) is not None,
                 'Set GITHUB_OWNER in bootstrap/settings.env.')
         require(re.fullmatch(r'[A-Za-z0-9._-]+', repo) is not None, 'Invalid repository name.')
-        require(capture(['git', 'branch', '--show-current']).strip() == b'main', 'Check out main.')
-        require(not capture(['git', 'status', '--porcelain']).strip(), 'Commit and push all changes first.')
-        info = json.loads(capture(['gh', 'api', f'repos/{owner}/{repo}']))
+        info = json.loads(capture(['gh', 'api', '--hostname', 'github.com', f'repos/{owner}/{repo}']))
         require(info.get('permissions', {}).get('admin') is True, 'GitHub repository admin access is required.')
         require(info.get('private') is True, 'This guide expects a private GitHub repository.')
-        origin = capture(['git', 'remote', 'get-url', 'origin']).decode().strip()
-        require(origin in {f'https://github.com/{owner}/{repo}', f'https://github.com/{owner}/{repo}.git',
-                           f'git@github.com:{owner}/{repo}.git', f'ssh://git@github.com/{owner}/{repo}.git'},
-                'origin does not match bootstrap/settings.env.')
-        capture(['git', 'fetch', 'origin', 'main'])
-        require(capture(['git', 'rev-parse', 'HEAD']) == capture(['git', 'rev-parse', 'origin/main']),
-                'Local main differs from origin/main.')
+        branch, personal = repository_target(info, os.environ.get('GITHUB_BRANCH', ''))
+        check_checkout(owner, repo, branch)
         visible(['bash', 'scripts/check.sh'])
         # Unlock and validate before making changes to the target host.
         identity = decrypt_recovery()
@@ -217,7 +243,8 @@ def main() -> None:
     require(any(a.get('address') == ip and a.get('type') == 'InternalIP'
                 for a in obj.get('status', {}).get('addresses', [])), 'Node InternalIP does not match SERVER_IP.')
     if identity is not None:
-        bootstrap_flux(kubeconfig, identity, owner, repo, os.environ['FLUX_VERSION'])
+        bootstrap_flux(kubeconfig, identity, owner, repo, os.environ['FLUX_VERSION'],
+                       branch=branch, personal=personal)
     print('\nReady. In your current terminal run:')
     print('export KUBECONFIG="$HOME/.kube/home-k3s.yaml"')
     print('kubectl config current-context  # expected: home-test')

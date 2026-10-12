@@ -6,7 +6,11 @@ set +x
 umask 077
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT"
-[[ $(id -u) != 0 ]] || { echo 'Run without sudo.' >&2; exit 1; }
+# Root bootstrap is supported on Linux. On macOS, keep the local user session.
+if [[ $(uname -s) == Darwin && $(id -u) -eq 0 ]]; then
+  echo 'On macOS run without sudo; root is supported on Linux.' >&2
+  exit 1
+fi
 if [[ -f .venv/bin/activate ]]; then source .venv/bin/activate; fi
 export PATH="$HOME/.local/bin:$PATH"
 set -a
