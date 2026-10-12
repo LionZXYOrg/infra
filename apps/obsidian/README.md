@@ -44,6 +44,9 @@ Transfer the encrypted archives, verify encrypted checksums, then restore in the
 kubectl --kubeconfig "$KUBECONFIG" apply -f apps/obsidian/restore-pod.yaml
 kubectl --kubeconfig "$KUBECONFIG" -n obsidian wait pod/restore --for=condition=Ready --timeout=180s
 age --decrypt -i "$BACKUP_IDENTITY" "$BACKUP_DIR/$CLAIM.tar.age" | kubectl --kubeconfig "$KUBECONFIG" -n obsidian exec -i restore -- tar -xpf - -C "/restore/$CLAIM"
+# The old Compose service used UID/GID 1000; the prepared CouchDB image uses 5984.
+# Confirm the selected final image UID before applying this ownership change.
+kubectl --kubeconfig "$KUBECONFIG" -n obsidian exec restore -- chown -R 5984:5984 /restore/obsidian-data
 kubectl --kubeconfig "$KUBECONFIG" -n obsidian delete pod restore
 ```
 
