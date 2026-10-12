@@ -68,8 +68,12 @@ if command -v kubectl >/dev/null 2>&1; then
   for dir in infrastructure/namespaces secrets infrastructure/controllers infrastructure/issuers infrastructure/tls apps/demo; do
     kubectl kustomize "$dir" >/dev/null
   done
-  if [[ -d clusters/home/flux-system ]]; then
+  # Flux creates this Kustomization during bootstrap. An empty or partial
+  # flux-system directory is not enough to build the cluster root yet.
+  if [[ -f clusters/home/flux-system/kustomization.yaml ]]; then
     kubectl kustomize clusters/home >/dev/null
+  else
+    echo 'INFO: Flux bootstrap manifests are not ready; skipping cluster root Kustomize build.'
   fi
 else
   echo 'INFO: kubectl is absent; Kustomize builds are deferred.'
