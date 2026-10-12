@@ -17,3 +17,7 @@ secrets-plain/
 # Mine
 .idea
 *.iml
+
+# Python imports must not make the bootstrap checkout dirty.
+__pycache__/
+*.py[cod]
