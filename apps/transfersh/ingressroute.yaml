@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: transfersh
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`transfersh.test.kulikov.uk`)
+    services:
+    - name: transfersh
+      port: 8080
+  tls: {}
