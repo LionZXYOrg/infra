@@ -70,9 +70,8 @@ spec:
       traefik:
         expose:
           default: false
-    logs:
-      general:
-        level: INFO
+    log:
+      level: INFO
     resources:
       requests:
         cpu: 100m
