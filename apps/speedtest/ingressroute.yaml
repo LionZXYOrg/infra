@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: speedtest
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`speedtest.test.kulikov.uk`)
+    services:
+    - name: speedtest
+      port: 8080
+  tls: {}
