@@ -12,11 +12,11 @@ Old host: `immich.kulikov.uk`. Rehearsal host: `immich.test.kulikov.uk`. The clu
 
 Private Secret names: `immich-config` in namespace `immich`. The paired private PR uses `scripts/secretctl.py`; only SOPS encrypted manifests belong in `infra-secrets`. Verify or rotate snapshot credentials before cutover. Do not print values or put them in Helm values, shell arguments or public files.
 
-Merge the public preparation first so its namespace exists while the service stays suspended; then merge the paired private PR into private `main`. The public Gitlink references a published private commit; Flux follows `main` independently. Resolve the namespace/secret indexes by keeping every entry from merged service PRs. Wait for `cluster-secrets` Ready before activation.
+Merge the public preparation first so its namespace exists while the service stays suspended; then merge the paired private PR into private `main`. The public Gitlink references a published private commit; Flux follows `main` independently. Resolve the namespace/secret indexes by keeping every entry from merged service PRs. After merging the private service PRs, update the public Gitlink to the published private `main` commit containing all merged Secrets; do not leave it pointing at an individual draft branch for bootstrap. Wait for `cluster-secrets` Ready before activation.
 
 ## Rehearse and restore
 
-Use an isolated cluster and a copy of the data. Set `KUBECONFIG` to the explicit disposable cluster path. Use test integration credentials. Confirm storage capacity and class before provisioning; `local-path` is provisional node-local storage, not HA or a backup. Apply the namespace and preparation with suspension preserved:
+Use an isolated cluster and a copy of the data. Run backup and restore pipelines in Bash with `set -euo pipefail`; a failed producer must fail the whole operation, and every restore must pass integrity checks before the old copy can be retired. Set `KUBECONFIG` to the explicit disposable cluster path. Use test integration credentials. Confirm storage capacity and class before provisioning; `local-path` is provisional node-local storage, not HA or a backup. Apply the namespace and preparation with suspension preserved:
 
 ```bash
 kubectl --kubeconfig "$KUBECONFIG" apply -f infrastructure/namespaces/immich.yaml
@@ -32,6 +32,24 @@ docker compose exec -T database pg_dump -U postgres -d immich --format=custom | 
 docker compose exec -T database pg_dumpall -U postgres --globals-only | age -r "$BACKUP_RECIPIENT" -o "$BACKUP_DIR/immich-globals.sql.age"
 ```
 
+Restore the full `app/immich/library` tree **before starting the database backend**, so the restore helper is the only Pod mounting either data PVC. On the old host, stop the server/ML writers and encrypt an archive of the library contents:
+
+```bash
+tar -C "$OLD_ROOT/app/immich/library" -cpf - . | age -r "$BACKUP_RECIPIENT" -o "$BACKUP_DIR/immich-library.tar.age"
+sha256sum "$BACKUP_DIR/immich-library.tar.age"
+```
+
+Transfer the encrypted archive and verify its checksum. In the isolated cluster with all releases still suspended:
+
+```bash
+kubectl --kubeconfig "$KUBECONFIG" apply -f apps/immich/restore-pod.yaml
+kubectl --kubeconfig "$KUBECONFIG" -n immich wait pod/restore --for=condition=Ready --timeout=180s
+age --decrypt -i "$BACKUP_IDENTITY" "$BACKUP_DIR/immich-library.tar.age" | kubectl --kubeconfig "$KUBECONFIG" -n immich exec -i restore -- tar -xpf - -C /restore/immich-library
+kubectl --kubeconfig "$KUBECONFIG" -n immich delete pod restore
+```
+
+Model cache may be discarded. Redis has no durable source volume; drain outstanding source jobs before the final backup and requeue missing jobs after restore.
+
 Keep the application release `immich` suspended. In the isolated copy, resume only `immich-backend` to create an empty database (the backend also starts Redis for Immich). Set the database role password via the test Secret, then privately review and restore required grants/roles from the encrypted globals backup. Do not replay CREATE ROLE for the already initialized postgres role blindly. PGDATA is `/var/lib/postgresql/data/pgdata` inside the PVC; the fresh database and a raw cold copy must both use that subdirectory. Restore with:
 
 ```bash
@@ -42,7 +60,7 @@ age --decrypt -i "$BACKUP_IDENTITY" "$BACKUP_DIR/immich.dump.age" | kubectl --ku
 
 Preserve the database extension schema and functions in the dump; verify vectors 0.2.0 and checksums before allowing the server to run migrations. Do not use a raw PGDATA copy across major versions, incompatible architectures, or changed extensions. If a cold copy is chosen instead, stop PostgreSQL cleanly and restore the entire original `postgres` tree into `/restore/immich-postgres/pgdata` with identical image/architecture; never copy a live database.
 
-Back up the full `app/immich/library` tree separately, encrypted with age. Apply `restore-pod.yaml` while the **server/ML release remains suspended**, and restore the archive contents to `/restore/immich-library`. Delete the helper before starting the server. Model cache may be discarded. Redis has no durable source volume; drain outstanding source jobs before the final backup and requeue missing jobs after restore.
+
 
 ## Health and acceptance
 
