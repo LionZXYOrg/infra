@@ -55,3 +55,5 @@ Run the local unit suite, `bash scripts/check.sh`, and `python3 scripts/migratio
 5. To roll back, suspend the Flux Kustomization and HelmRelease(s), stop/scale the new workloads to zero and confirm there are no writers. Restore the old DNS/client route and restart the old containers from the retained matching backup/image. If new writes occurred, reconcile them or restore a compatible backup before restarting the old writer. Do not copy migrated database files backward across schema versions. Preserve new PVCs and encrypted backups for diagnosis.
 
 Paired private preparation: [infra-secrets PR #3](https://github.com/LionZXYOrg/infra-secrets/pull/3).
+
+The PostgreSQL image retains its volume-initialization capabilities, drops NET_RAW and disallows privilege escalation. CI boots the actual pinned image with an empty tmpfs, generated disposable password and no networking; it requires pg_isready without reading application data or exposing credentials.

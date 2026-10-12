@@ -101,7 +101,7 @@ spec:
               allowPrivilegeEscalation: false
               capabilities:
                 drop:
-                - ALL
+                - NET_RAW
         forceRename: lionbot-postgres
     service:
       main:

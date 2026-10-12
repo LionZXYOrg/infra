@@ -26,3 +26,8 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual({v['persistentVolumeClaim']['claimName'] for v in helper['volumes']}, declared)
         self.assertFalse(helper['automountServiceAccountToken'])
         self.assertFalse(helper.get('hostNetwork', False))
+
+    def test_database_entrypoint_can_initialize_volume_ownership(self):
+        c = release('lionbot-db')['spec']['values']['controllers']['main']['containers']['main']
+        self.assertEqual(c['securityContext']['capabilities']['drop'], ['NET_RAW'])
+        self.assertFalse(c['securityContext']['allowPrivilegeEscalation'])
