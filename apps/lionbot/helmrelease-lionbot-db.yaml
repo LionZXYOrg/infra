@@ -1,0 +1,122 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: lionbot-db
+spec:
+  releaseName: lionbot-db
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: app-template
+      version: 5.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: charts-app
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+    controllers:
+      main:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: postgres
+              tag: '13'
+              digest: sha256:4689940c683801b4ab839ab3b0a0a3555a5fe425371422310944e89eca7d8068
+              pullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: 50m
+                memory: 512Mi
+              limits:
+                memory: 512Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            env:
+              POSTGRES_USER: postgres
+              POSTGRES_DB: postgres
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: lionbot-config
+                    key: POSTGRES_PASSWORD
+              PGDATA: /var/lib/postgresql/data/pgdata
+            ports:
+            - name: http
+              containerPort: 5432
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+        forceRename: lionbot-postgres
+    service:
+      main:
+        controller: main
+        type: ClusterIP
+        ports:
+          http:
+            port: 5432
+            targetPort: http
+        forceRename: lionbot-postgres
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        advancedMounts:
+          main:
+            main:
+            - path: /var/lib/postgresql/data
+        existingClaim: lionbot-postgres
