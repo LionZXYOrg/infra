@@ -15,3 +15,8 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(v['controllers']['main']['containers']['main']['env']['MODE'], 'standalone')
         self.assertNotIn('persistence', v)
         self.assertEqual(v['service']['main']['ports']['http']['port'], 8080)
+
+    def test_apache_can_change_worker_uid_and_group(self):
+        c = release('speedtest')['spec']['values']['controllers']['main']['containers']['main']
+        self.assertEqual(c['securityContext']['capabilities']['drop'], ['NET_RAW'])
+        self.assertFalse(c['securityContext']['allowPrivilegeEscalation'])
