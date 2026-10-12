@@ -94,7 +94,9 @@ spec:
                     command:
                     - sh
                     - -c
-                    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+                    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" && test "$(psql
+                      -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc 'SELECT COALESCE(SUM(checksum_failures),
+                      0) FROM pg_stat_database')" = 0
                   periodSeconds: 10
                   timeoutSeconds: 5
                   failureThreshold: 6

@@ -28,3 +28,10 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual({v['persistentVolumeClaim']['claimName'] for v in helper['volumes']}, declared)
         self.assertFalse(helper['automountServiceAccountToken'])
         self.assertFalse(helper.get('hostNetwork', False))
+
+    def test_database_readiness_retains_the_source_checksum_guard(self):
+        c = release('immich-backend')['spec']['values']['controllers']['database']['containers']['main']
+        readiness = c['probes']['readiness']['spec']['exec']['command'][-1]
+        self.assertIn('checksum_failures', readiness)
+        self.assertIn('pg_stat_database', readiness)
+        self.assertNotIn('checksum_failures', c['probes']['liveness']['spec']['exec']['command'][-1])
