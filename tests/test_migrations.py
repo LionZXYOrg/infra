@@ -37,6 +37,8 @@ class WorkloadContractTests(unittest.TestCase):
             ('overlapping writers', lambda o: o[1]['spec']['strategy'].update(type='RollingUpdate')),
             ('wrong replica count', lambda o: o[1]['spec'].update(replicas=2)),
             ('missing PVC', lambda o: o[0]['metadata'].update(name='wrong')),
+            ('ephemeral data', lambda o: o[1]['spec']['template']['spec']['volumes'][0].update(
+                persistentVolumeClaim={'claimName': 'wrong'})),
             ('wrong service port', lambda o: o[2]['spec']['ports'][0].update(targetPort='wrong')),
             ('wrong selector', lambda o: o[2]['spec']['selector'].update(app='wrong')),
             ('wrong route', lambda o: o[3]['spec']['routes'][0]['services'][0].update(name='wrong')),

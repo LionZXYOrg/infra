@@ -117,6 +117,7 @@ def check_workloads(name, contract, objects):
     secrets = set()
     mounts = set()
     images = set()
+    mounted_pvcs = set()
     for obj in workloads:
         spec = obj['spec']
         require(spec.get('replicas') == 1, f'{name}: single-writer workload must have one replica')
@@ -130,6 +131,7 @@ def check_workloads(name, contract, objects):
                 secrets.add(vol['secret']['secretName'])
             if 'persistentVolumeClaim' in vol:
                 require(vol['persistentVolumeClaim']['claimName'] in pvcs, f'{name}: dangling PVC reference')
+                mounted_pvcs.add(vol['persistentVolumeClaim']['claimName'])
         for c in pod.get('containers', []) + pod.get('initContainers', []):
             image = c['image']
             images.add(image)
@@ -148,6 +150,7 @@ def check_workloads(name, contract, objects):
             if c in pod.get('containers', []):
                 require('readinessProbe' in c and 'livenessProbe' in c, f'{name}: health probes missing')
     require(secrets == set(contract['secrets']), f'{name}: unexpected or missing Secret references')
+    require(mounted_pvcs == pvcs, f'{name}: persistent data is not mounted by the application')
     require(set(contract['mounts']).issubset(mounts), f'{name}: legacy data mount changed')
     require(set(contract.get('pendingImages', [])).issubset(images), f'{name}: invalid pending image declaration')
     for svc in (o for o in objects if o['kind'] == 'Service' and o.get('spec', {}).get('selector')):
