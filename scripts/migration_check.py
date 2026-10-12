@@ -91,7 +91,17 @@ def render(root, name, contract, objects, cache):
                                      '--namespace', name, '--kube-version', '1.35.9', '-f', str(values)],
                                     capture_output=True, timeout=60)
             require(result.returncode == 0, f'{name}/{hr["metadata"]["name"]}: Helm render failed: ' + result.stderr.decode())
-            rendered.extend(o for o in yaml.safe_load_all(result.stdout) if o)
+            chart_objects = [o for o in yaml.safe_load_all(result.stdout) if o]
+            for postrenderer in hr['spec'].get('postRenderers', []):
+                config = postrenderer['kustomize']
+                public_yaml = Path(work) / 'rendered.yaml'
+                public_yaml.write_text(yaml.safe_dump_all(chart_objects))
+                (Path(work) / 'kustomization.yaml').write_text(yaml.safe_dump({
+                    'apiVersion': 'kustomize.config.k8s.io/v1beta1', 'kind': 'Kustomization',
+                    'resources': ['rendered.yaml'], **config}))
+                raw = subprocess.check_output(['kubectl', 'kustomize', work])
+                chart_objects = [o for o in yaml.safe_load_all(raw) if o]
+            rendered.extend(chart_objects)
     return rendered
 
 
