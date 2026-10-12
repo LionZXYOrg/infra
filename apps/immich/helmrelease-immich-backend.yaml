@@ -1,0 +1,195 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich-backend
+spec:
+  releaseName: immich-backend
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: app-template
+      version: 5.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: charts-app
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+    controllers:
+      database:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: docker.io/tensorchord/pgvecto-rs
+              tag: pg14-v0.2.0
+              digest: sha256:90724186f0a3517cf6914295b5ab410db9ce23190a2d9d0b9dd6463e3fa298f0
+            ports:
+            - name: http
+              containerPort: 5432
+            env:
+              POSTGRES_USER: postgres
+              POSTGRES_DB: immich
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: immich-config
+                    key: DB_PASSWORD
+              POSTGRES_INITDB_ARGS: --data-checksums
+              PGDATA: /var/lib/postgresql/data/pgdata
+            args:
+            - -c
+            - shared_preload_libraries=vectors.so
+            - -c
+            - search_path="$user", public, vectors
+            - -c
+            - logging_collector=on
+            - -c
+            - max_wal_size=2GB
+            - -c
+            - shared_buffers=512MB
+            - -c
+            - wal_compression=on
+            resources:
+              requests:
+                cpu: 50m
+                memory: 1Gi
+              limits:
+                memory: 1Gi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+        forceRename: immich-postgres
+      redis:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: docker.io/redis
+              tag: 6.2-alpine
+              digest: sha256:e3b17ba9479deec4b7d1eeec1548a253acc5374d68d3b27937fcfe4df8d18c7e
+            ports:
+            - name: http
+              containerPort: 6379
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 256Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - test "$(redis-cli ping)" = PONG
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - test "$(redis-cli ping)" = PONG
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - test "$(redis-cli ping)" = PONG
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+        forceRename: immich-redis
+    service:
+      database:
+        controller: database
+        type: ClusterIP
+        ports:
+          http:
+            port: 5432
+            targetPort: http
+        forceRename: immich-postgres
+      redis:
+        controller: redis
+        type: ClusterIP
+        ports:
+          http:
+            port: 6379
+            targetPort: http
+        forceRename: immich-redis
+    persistence:
+      database:
+        type: persistentVolumeClaim
+        advancedMounts:
+          database:
+            main:
+            - path: /var/lib/postgresql/data
+        existingClaim: immich-postgres

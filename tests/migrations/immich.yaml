@@ -1,0 +1,21 @@
+source:
+  repository: https://github.com/LionZXY/rpi-infra
+  commit: ccfc5ecd5433fa0d7fe3844f167612b8ed6e2297
+  path: app/immich
+charts:
+  immich-backend:
+    chart: app-template
+    version: 5.3.0
+    url: https://bjw-s-labs.github.io/helm-charts/other/app-template-5.3.0.tgz
+    sha256: 60a593576f2a4c6a93ef384d9206a269a06d6124e50c969a382b58fd473628a9
+  immich:
+    chart: immich
+    version: 0.8.5
+    url: https://github.com/immich-app/immich-charts/releases/download/immich-0.8.5/immich-0.8.5.tgz
+    sha256: 7058b1e7a25ea74791c3fbbede164be121b1bc90788942aa041444714f67edd2
+workloads: 4
+secrets:
+- immich-config
+mounts:
+- /var/lib/postgresql/data
+- /usr/src/app/upload

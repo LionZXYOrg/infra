@@ -1,0 +1,163 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich
+spec:
+  releaseName: immich
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: immich
+      version: 0.8.5
+      sourceRef:
+        kind: HelmRepository
+        name: charts-immich
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    automountServiceAccountToken: false
+    controller:
+      replicas: 1
+      strategy: Recreate
+    env: &id001
+      DB_HOSTNAME: immich-postgres
+      DB_USERNAME: postgres
+      DB_DATABASE_NAME: immich
+      DB_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: immich-config
+            key: DB_PASSWORD
+      REDIS_HOSTNAME: immich-redis
+      IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
+    immich:
+      persistence:
+        library:
+          existingClaim: immich-library
+    postgresql:
+      enabled: false
+      global:
+        postgresql:
+          auth:
+            username: postgres
+            database: immich
+            password: ''
+    redis:
+      enabled: false
+    server:
+      image:
+        repository: ghcr.io/immich-app/immich-server
+        tag: v1.131.3@sha256:7e5b6729b12b5e5cc5d98bcc6f7c27f723fabae4ee77696855808ebd5200bbf8
+        pullPolicy: IfNotPresent
+      controller:
+        replicas: 1
+        strategy: Recreate
+      resources:
+        requests:
+          cpu: 50m
+          memory: 2Gi
+        limits:
+          memory: 2Gi
+      probes:
+        startup:
+          enabled: true
+          custom: true
+          spec:
+            httpGet:
+              port: 2283
+              path: /api/server/ping
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+        readiness:
+          enabled: true
+          custom: true
+          spec:
+            httpGet:
+              port: 2283
+              path: /api/server/ping
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+        liveness:
+          enabled: true
+          custom: true
+          spec:
+            httpGet:
+              port: 2283
+              path: /api/server/ping
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+      env: *id001
+      automountServiceAccountToken: false
+    machine-learning:
+      image:
+        repository: ghcr.io/immich-app/immich-machine-learning
+        tag: v1.131.3@sha256:d6f07b454c0ec7e4ba3a5926fff2482f8fd1a9922b489122dec33b11a4f37bdd
+        pullPolicy: IfNotPresent
+      controller:
+        replicas: 1
+        strategy: Recreate
+      resources:
+        requests:
+          cpu: 50m
+          memory: 2Gi
+        limits:
+          memory: 2Gi
+      probes:
+        startup:
+          enabled: true
+          custom: true
+          spec:
+            httpGet:
+              port: 3003
+              path: /ping
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+        readiness:
+          enabled: true
+          custom: true
+          spec:
+            httpGet:
+              port: 3003
+              path: /ping
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+        liveness:
+          enabled: true
+          custom: true
+          spec:
+            httpGet:
+              port: 3003
+              path: /ping
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+      env: *id001
+      automountServiceAccountToken: false
+      persistence:
+        cache:
+          enabled: true
+          type: emptyDir
+          mountPath: /cache
+  dependsOn:
+  - name: immich-backend
+  postRenderers:
+  - kustomize:
+      patches:
+      - target:
+          kind: Deployment
+          name: immich-.*
+        patch: "- op: replace\n  path: /spec/strategy\n  value: {type: Recreate}\n"
