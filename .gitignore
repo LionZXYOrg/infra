@@ -1,0 +1,19 @@
+# Never commit plaintext credentials or private identities.
+*.agekey
+*.key
+*.pem
+*.p12
+.env
+.env.*
+.kube/
+secrets-plain/
+*.decrypted
+*.swp
+*.swo
+*.bak
+.venv
+# .sops.yaml, *.sops.yaml and bootstrap/sops-age.age MUST be committed.
+
+# Mine
+.idea
+*.iml

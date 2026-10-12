@@ -1,0 +1,37 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-namespaces
+  namespace: flux-system
+spec:
+  interval: 1m
+  path: ./infrastructure/namespaces
+  prune: false
+  deletionPolicy: Orphan
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cluster-secrets
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-namespaces
+  interval: 1m
+  retryInterval: 30s
+  timeout: 5m
+  path: ./secrets
+  prune: true
+  deletionPolicy: Orphan
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
