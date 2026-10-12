@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: obsidian
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`obsidian.test.kulikov.uk`)
+    services:
+    - name: obsidian-svc-couchdb
+      port: 5984
+  tls: {}
