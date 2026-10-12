@@ -12,11 +12,11 @@ Old host: `warden.lionzxy.ru`. Rehearsal host: `warden.test.kulikov.uk`. The clu
 
 Private Secret names: `warden-config` in namespace `warden`. The paired private PR uses `scripts/secretctl.py`; only SOPS encrypted manifests belong in `infra-secrets`. Verify or rotate snapshot credentials before cutover. Do not print values or put them in Helm values, shell arguments or public files.
 
-Merge the public preparation first so its namespace exists while the service stays suspended; then merge the paired private PR into private `main`. The public Gitlink references a published private commit; Flux follows `main` independently. Resolve the namespace/secret indexes by keeping every entry from merged service PRs. Wait for `cluster-secrets` Ready before activation.
+Merge the public preparation first so its namespace exists while the service stays suspended; then merge the paired private PR into private `main`. The public Gitlink references a published private commit; Flux follows `main` independently. Resolve the namespace/secret indexes by keeping every entry from merged service PRs. After merging the private service PRs, update the public Gitlink to the published private `main` commit containing all merged Secrets; do not leave it pointing at an individual draft branch for bootstrap. Wait for `cluster-secrets` Ready before activation.
 
 ## Rehearse and restore
 
-Use an isolated cluster and a copy of the data. Set `KUBECONFIG` to the explicit disposable cluster path. Use test integration credentials. Confirm storage capacity and class before provisioning; `local-path` is provisional node-local storage, not HA or a backup. Apply the namespace and preparation with suspension preserved:
+Use an isolated cluster and a copy of the data. Run backup and restore pipelines in Bash with `set -euo pipefail`; a failed producer must fail the whole operation, and every restore must pass integrity checks before the old copy can be retired. Set `KUBECONFIG` to the explicit disposable cluster path. Use test integration credentials. Confirm storage capacity and class before provisioning; `local-path` is provisional node-local storage, not HA or a backup. Apply the namespace and preparation with suspension preserved:
 
 ```bash
 kubectl --kubeconfig "$KUBECONFIG" apply -f infrastructure/namespaces/warden.yaml
