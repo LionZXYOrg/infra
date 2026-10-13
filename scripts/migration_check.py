@@ -14,7 +14,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 EXCLUDED = {'pihole', 'n8n', 'litnetbot', 'imgur', 'samba', 'switchstatic', 'tabby',
-            'aiobashim', 'qbittorrentbot'}
+            'aiobashim', 'qbittorrentbot', 'lionbot', 'wireguard', 'midpass'}
 
 
 def require(ok, message):
@@ -39,7 +39,7 @@ def definitions(root, name):
 
 
 def check_preparation(root, name, contract, objects):
-    require(name not in EXCLUDED, f'{name}: explicitly excluded service')
+    require(name.lower() not in EXCLUDED, f'{name}: explicitly excluded service')
     require(contract['source']['commit'] == 'ccfc5ecd5433fa0d7fe3844f167612b8ed6e2297',
             f'{name}: snapshot provenance changed; review inventory')
     flux = load(root / 'clusters/home' / f'{name}.yaml')
@@ -49,7 +49,8 @@ def check_preparation(root, name, contract, objects):
             f'{name}: missing production dependencies')
     require(f'{name}.yaml' in load(root / 'clusters/home/kustomization.yaml')['resources'],
             f'{name}: Flux registration missing')
-    require(f'{name}.yaml' in load(root / 'infrastructure/namespaces/kustomization.yaml')['resources'],
+    namespace = contract.get('namespace', name)
+    require(f'{namespace}.yaml' in load(root / 'infrastructure/namespaces/kustomization.yaml')['resources'],
             f'{name}: namespace registration missing')
     hrs = [o for o in objects if o['kind'] == 'HelmRelease']
     require(bool(hrs), f'{name}: no Helm release')
@@ -71,7 +72,17 @@ def check_preparation(root, name, contract, objects):
             require(o['spec']['entryPoints'] == ['websecure'] and 'tls' in o['spec'], f'{name}: route lacks TLS')
             require(f"Host(`{name}.test.kulikov.uk`)" == o['spec']['routes'][0]['match'],
                     f'{name}: preparation must use the staging host')
-    require((root / 'apps' / name / 'README.md').is_file(), f'{name}: migration instructions missing')
+    instructions = root / 'apps' / name / 'MIGRATION.md'
+    require(instructions.is_file(), f'{name}: storage commands missing')
+    text = instructions.read_text().strip()
+    require(text.startswith('```bash\n') and text.endswith('\n```') and text.count('```') == 2,
+            f'{name}: migration file must contain one Bash command block')
+    commands = text.removeprefix('```bash\n').removesuffix('\n```')
+    require(not re.search(r'(^|[|\s])(age|gpg|sops)(\s|$)', commands),
+            f'{name}: storage commands must not encrypt data')
+    result = subprocess.run(['bash', '-n'], input=commands.encode(), capture_output=True)
+    require(result.returncode == 0, f'{name}: invalid storage commands')
+    require(not (root / 'apps' / name / 'README.md').exists(), f'{name}: use MIGRATION.md for storage commands')
 
 
 def render(root, name, contract, objects, cache):
@@ -80,15 +91,22 @@ def render(root, name, contract, objects, cache):
         lock = contract['charts'][hr['metadata']['name']]
         archive = cache / (lock['sha256'] + '.tgz')
         if not archive.exists():
-            require(lock['url'].startswith('https://'), 'Only HTTPS chart archives are allowed')
-            with urllib.request.urlopen(lock['url'], timeout=60) as response:
-                archive.write_bytes(response.read())
+            if lock['url'].startswith('oci://'):
+                result = subprocess.run(['helm', 'pull', lock['url'], '--version', lock['version'],
+                                         '--destination', str(cache)], capture_output=True, timeout=60)
+                require(result.returncode == 0, f'{name}: OCI chart download failed')
+                downloaded = cache / f"{lock['chart']}-{lock['version']}.tgz"
+                downloaded.replace(archive)
+            else:
+                require(lock['url'].startswith('https://'), 'Only HTTPS or OCI chart archives are allowed')
+                with urllib.request.urlopen(lock['url'], timeout=60) as response:
+                    archive.write_bytes(response.read())
         require(hashlib.sha256(archive.read_bytes()).hexdigest() == lock['sha256'], f'{name}: chart checksum mismatch')
         with tempfile.TemporaryDirectory() as work:
             values = Path(work) / 'values.yaml'
             values.write_text(yaml.safe_dump(hr['spec'].get('values', {})))
             result = subprocess.run(['helm', 'template', hr['spec']['releaseName'], str(archive),
-                                     '--namespace', name, '--kube-version', '1.35.9', '-f', str(values)],
+                                     '--namespace', contract.get('namespace', name), '--kube-version', '1.35.9', '-f', str(values)],
                                     capture_output=True, timeout=60)
             require(result.returncode == 0, f'{name}/{hr["metadata"]["name"]}: Helm render failed: ' + result.stderr.decode())
             chart_objects = [o for o in yaml.safe_load_all(result.stdout) if o]
@@ -109,11 +127,31 @@ def workload_objects(objects):
     return [o for o in objects if o['kind'] in {'Deployment', 'StatefulSet'}]
 
 
+def check_images(root, name, contract):
+    for index, build in enumerate(contract.get('imageBuilds', [])):
+        context = (root / build['context']).resolve()
+        require(context.is_relative_to((root / 'apps' / name / 'image').resolve()),
+                f'{name}: image context must stay inside the service source')
+        dockerfile = (context / build.get('dockerfile', 'Dockerfile')).resolve()
+        require(dockerfile.is_relative_to(context), f'{name}: Dockerfile escapes image context')
+        tag = f'infra-migration-{name}-{index}:test'
+        result = subprocess.run(['docker', 'build', '-t', tag, '-f', str(dockerfile), str(context)],
+                                capture_output=True, timeout=600)
+        require(result.returncode == 0, f'{name}: image build failed; inspect credential-free build locally')
+        args = ['docker', 'run', '--rm', '--network', 'none']
+        for key, value in build.get('fixtureEnvironment', {}).items():
+            args.extend(['--env', f'{key}={value}'])
+        args.extend(['--entrypoint', 'python', tag, '-m', 'unittest', 'discover', '-s', 'tests', '-v'])
+        result = subprocess.run(args, capture_output=True, timeout=60)
+        require(result.returncode == 0, f'{name}: image tests failed; no application started')
+
+
 def check_workloads(name, contract, objects):
     require(not any(o['kind'] == 'Secret' for o in objects), f'{name}: chart generated an unmanaged Secret')
     workloads = workload_objects(objects)
     require(len(workloads) == contract['workloads'], f'{name}: missing or extra workloads')
     pvcs = {o['metadata']['name'] for o in objects if o['kind'] == 'PersistentVolumeClaim'}
+    shared_pvcs = set(contract.get('sharedClaims', []))
     secrets = set()
     mounts = set()
     images = set()
@@ -124,13 +162,21 @@ def check_workloads(name, contract, objects):
         if obj['kind'] == 'Deployment':
             require(spec.get('strategy', {}).get('type') == 'Recreate', f'{name}: overlapping writers on update')
         pod = spec['template']['spec']
-        require(not pod.get('hostNetwork') and not pod.get('hostPID'), f'{name}: host isolation removed')
+        require(not pod.get('hostPID'), f'{name}: host PID isolation removed')
+        host_network = obj['metadata']['name'] in contract.get('hostNetworkWorkloads', [])
+        require(bool(pod.get('hostNetwork')) == host_network, f'{name}: unexpected host networking')
+        if host_network:
+            require(pod.get('dnsPolicy') == 'ClusterFirstWithHostNet', f'{name}: host network cannot resolve cluster services')
+            require(bool(pod.get('nodeSelector')), f'{name}: host network node must be selected')
         for vol in pod.get('volumes', []):
-            require('hostPath' not in vol, f'{name}: legacy hostPath is not portable')
+            if 'hostPath' in vol:
+                require(vol['hostPath']['path'] in contract.get('hostPaths', {}).get(obj['metadata']['name'], []),
+                        f'{name}: unapproved host path')
+                require(bool(pod.get('nodeSelector')), f'{name}: hardware node must be selected')
             if 'secret' in vol:
                 secrets.add(vol['secret']['secretName'])
             if 'persistentVolumeClaim' in vol:
-                require(vol['persistentVolumeClaim']['claimName'] in pvcs, f'{name}: dangling PVC reference')
+                require(vol['persistentVolumeClaim']['claimName'] in pvcs | shared_pvcs, f'{name}: dangling PVC reference')
                 mounted_pvcs.add(vol['persistentVolumeClaim']['claimName'])
         for c in pod.get('containers', []) + pod.get('initContainers', []):
             image = c['image']
@@ -150,7 +196,7 @@ def check_workloads(name, contract, objects):
             if c in pod.get('containers', []):
                 require('readinessProbe' in c and 'livenessProbe' in c, f'{name}: health probes missing')
     require(secrets == set(contract['secrets']), f'{name}: unexpected or missing Secret references')
-    require(mounted_pvcs == pvcs, f'{name}: persistent data is not mounted by the application')
+    require(mounted_pvcs == pvcs | shared_pvcs, f'{name}: persistent data is not mounted by the application')
     require(set(contract['mounts']).issubset(mounts), f'{name}: legacy data mount changed')
     require(set(contract.get('pendingImages', [])).issubset(images), f'{name}: invalid pending image declaration')
     for svc in (o for o in objects if o['kind'] == 'Service' and o.get('spec', {}).get('selector')):
@@ -172,6 +218,7 @@ def check_workloads(name, contract, objects):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--render', action='store_true')
+    parser.add_argument('--build-images', action='store_true')
     parser.add_argument('--output', type=Path, help='Write public rendered resources for inspection')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as work:
@@ -185,6 +232,8 @@ def main():
                 if args.output:
                     args.output.mkdir(parents=True, exist_ok=True)
                     (args.output / f'{name}.yaml').write_text(yaml.safe_dump_all(objects, sort_keys=False))
+            if args.build_images:
+                check_images(ROOT, name, contract)
             print(f'PASS: {name} preparation' + (' and rendered workload contract' if args.render else ''))
 
 
