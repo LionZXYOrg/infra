@@ -3,6 +3,6 @@ kind: Kustomization
 namespace: transfersh
 resources:
 - helmrelease-transfersh.yaml
+- ingressroute.yaml
 - repository-app.yaml
 - storage.yaml
-- ingressroute.yaml
