@@ -1,7 +1,9 @@
 source:
   repository: https://github.com/LionZXY/rpi-infra
   commit: ccfc5ecd5433fa0d7fe3844f167612b8ed6e2297
-  path: app/qbittorrent
+  path: /home/docker/app/qbittorrent
+  observedAt: '2026-10-13'
+  host: home.kulikov.uk
 charts:
   qbittorrent:
     chart: app-template
@@ -13,3 +15,6 @@ secrets: []
 mounts:
 - /config
 - /downloads
+sharedClaims:
+- copyparty-data
+namespace: copyparty

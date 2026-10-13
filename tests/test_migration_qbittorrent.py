@@ -25,3 +25,14 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual({v['persistentVolumeClaim']['claimName'] for v in helper['volumes']}, declared)
         self.assertFalse(helper['automountServiceAccountToken'])
         self.assertFalse(helper.get('hostNetwork', False))
+
+    def test_downloads_share_copyparty_claim_and_node(self):
+        v = release('qbittorrent')['spec']['values']
+        self.assertEqual(v['controllers']['main']['containers']['main']['image']['repository'], 'ghcr.io/lionzxy/qbittorrent-noupload')
+        self.assertEqual(load('kustomization.yaml')['namespace'], 'copyparty')
+        self.assertEqual(v['persistence']['downloads']['existingClaim'], 'copyparty-data')
+        self.assertEqual(v['persistence']['downloads']['advancedMounts']['main']['main'][0]['subPath'], 'downloads')
+        affinity = v['defaultPodOptions']['affinity']['podAffinity']['requiredDuringSchedulingIgnoredDuringExecution'][0]
+        self.assertEqual(affinity['topologyKey'], 'kubernetes.io/hostname')
+        self.assertEqual(affinity['labelSelector']['matchLabels'], {'home.kulikov.uk/shared-data': 'copyparty'})
+        self.assertNotIn('samba', (APP / 'MIGRATION.md').read_text())

@@ -1,8 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: qbittorrent
+namespace: copyparty
 resources:
 - helmrelease-qbittorrent.yaml
+- ingressroute.yaml
 - repository-app.yaml
 - storage.yaml
-- ingressroute.yaml
