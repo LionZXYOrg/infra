@@ -1,0 +1,118 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: copyparty
+spec:
+  releaseName: copyparty
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: app-template
+      version: 5.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: charts-app
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      labels:
+        home.kulikov.uk/shared-data: copyparty
+    controllers:
+      main:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        forceRename: copyparty
+        containers:
+          main:
+            image:
+              repository: copyparty/ac
+              tag: latest
+              digest: sha256:c670e2edab6639c5a9197658e2df114290617732624d662058e646c75b1d2cd0
+              pullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: 50m
+                memory: 512Mi
+              limits:
+                memory: 512Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 3923
+                    path: /
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 3923
+                    path: /
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 3923
+                    path: /
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            securityContext:
+              runAsUser: 1000
+              runAsGroup: 1000
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+            ports:
+            - name: http
+              containerPort: 3923
+    service:
+      main:
+        controller: main
+        forceRename: copyparty
+        type: ClusterIP
+        ports:
+          http:
+            port: 3923
+            targetPort: http
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        existingClaim: copyparty-data
+        advancedMounts:
+          main:
+            main:
+            - path: /w
+      configuration:
+        type: persistentVolumeClaim
+        existingClaim: copyparty-config
+        advancedMounts:
+          main:
+            main:
+            - path: /cfg
