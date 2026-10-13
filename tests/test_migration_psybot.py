@@ -15,6 +15,7 @@ class MigrationTests(unittest.TestCase):
         contract = yaml.safe_load((ROOT / 'tests/migrations/psybot.yaml').read_text())
         self.assertEqual(len(contract['pendingImages']), 1)
         self.assertEqual(contract['pendingImages'][0], 'ghcr.io/lionzxyorg/psybot:snapshot-ccfc5ecd5433')
+        self.assertEqual(contract['imageBuilds'], [{'context': 'apps/psybot/image'}])
 
 class BotBehaviorTests(unittest.TestCase):
     def load_bot(self, text):

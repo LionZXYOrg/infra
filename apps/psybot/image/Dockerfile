@@ -3,5 +3,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN apk add --no-cache --virtual .build-deps gcc musl-dev libffi-dev openssl-dev python3-dev && pip install --no-cache-dir -r requirements.txt && apk del .build-deps
 COPY main.py .
+COPY tests ./tests
 USER 10001:10001
 CMD ["python3", "main.py"]

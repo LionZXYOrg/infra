@@ -16,3 +16,5 @@ secrets:
 mounts: []
 pendingImages:
 - ghcr.io/lionzxyorg/psybot:snapshot-ccfc5ecd5433
+imageBuilds:
+- context: apps/psybot/image
