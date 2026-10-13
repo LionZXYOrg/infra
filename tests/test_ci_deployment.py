@@ -107,6 +107,20 @@ class DeploymentTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'production'):
                 self.runner.verify_no_production_resources()
 
+    def test_shared_namespace_is_checked_for_accidental_application_startup(self):
+        directory = self.work / 'tests/migrations'
+        directory.mkdir(parents=True)
+        (directory / 'example.yaml').write_text('workloads: 1\nnamespace: shared\n')
+        fixture = unittest.mock.Mock(infra_path=self.work)
+        responses = [json.dumps({'spec': {'suspend': True}}).encode(),
+                     json.dumps({'items': [{'metadata': {'name': 'app'}}]}).encode(),
+                     json.dumps({'items': []}).encode()]
+        with patch.object(self.runner, 'kube', side_effect=responses) as kube:
+            with self.assertRaisesRegex(RuntimeError, 'started application'):
+                self.runner.verify_migrations_suspended(fixture)
+        self.assertEqual(kube.call_args_list[1].args[0][:2], ['-n', 'shared'])
+        self.assertEqual(kube.call_args_list[2].args[0][:2], ['-n', 'shared'])
+
     def test_production_certificate_and_cloudflare_secret_fail_isolation(self):
         for certificate, secret in (({'metadata': {'name': 'wildcard', 'namespace': 'traefik'}}, None),
                                     (None, {'metadata': {'name': 'cloudflare-api-token', 'namespace': 'cert-manager'}})):
