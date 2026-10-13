@@ -14,7 +14,7 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual((APP / 'image/requirements.txt').read_text(), 'python-telegram-bot==13.15\n')
         contract = yaml.safe_load((ROOT / 'tests/migrations/psybot.yaml').read_text())
         self.assertEqual(len(contract['pendingImages']), 1)
-        self.assertIn('before activation', (APP / 'README.md').read_text())
+        self.assertEqual(contract['pendingImages'][0], 'ghcr.io/lionzxyorg/psybot:snapshot-ccfc5ecd5433')
 
 class BotBehaviorTests(unittest.TestCase):
     def load_bot(self, text):
