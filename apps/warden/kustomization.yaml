@@ -3,6 +3,6 @@ kind: Kustomization
 namespace: warden
 resources:
 - helmrelease-warden.yaml
+- ingressroute.yaml
 - repository-vaultwarden.yaml
 - storage.yaml
-- ingressroute.yaml

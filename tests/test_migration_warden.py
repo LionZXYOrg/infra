@@ -13,7 +13,7 @@ class MigrationTests(unittest.TestCase):
     def test_chart_cannot_enable_signups_or_generate_credentials(self):
         v = release('warden')['spec']['values']
         self.assertFalse(v['signupsAllowed'])
-        self.assertEqual(v['image']['tag'].split('@')[0], '1.35.2-alpine')
+        self.assertEqual(v['image']['tag'].split('@')[0], '1.37.2-alpine')
         self.assertEqual(v['adminToken']['existingSecret'], 'warden-config')
         for integration in ('smtp', 'pushNotifications', 'yubico', 'duo'):
             self.assertEqual(v[integration]['existingSecret'], 'warden-config')
