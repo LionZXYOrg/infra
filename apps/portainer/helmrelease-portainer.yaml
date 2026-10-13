@@ -1,0 +1,48 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: portainer
+spec:
+  releaseName: portainer
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: portainer
+      version: 245.2.0
+      sourceRef:
+        kind: HelmRepository
+        name: charts-portainer
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    replicaCount: 1
+    image:
+      repository: portainer/portainer-ce
+      tag: 2.33.5@sha256:c2353b2bd0dbfaa33faa8895222732e8823a4cf5b57ea664ba631ec3e23d842b
+      pullPolicy: IfNotPresent
+    localMgmt: true
+    service:
+      type: ClusterIP
+      httpPort: 9000
+      httpsPort: 9443
+      edgePort: 8000
+    persistence:
+      enabled: true
+      existingClaim: portainer-data
+    ingress:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 512Mi

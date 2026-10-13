@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: restore
+  namespace: portainer
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  containers:
+  - name: restore
+    image: busybox:1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+    command:
+    - sleep
+    - '86400'
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 64Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+    volumeMounts:
+    - name: data-0
+      mountPath: /restore/portainer-data
+  volumes:
+  - name: data-0
+    persistentVolumeClaim:
+      claimName: portainer-data

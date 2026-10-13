@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: portainer
+resources:
+- helmrelease-portainer.yaml
+- helmrepository-portainer.yaml
+- ingressroute.yaml
+- storage.yaml
