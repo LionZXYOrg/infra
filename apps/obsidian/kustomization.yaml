@@ -3,6 +3,6 @@ kind: Kustomization
 namespace: obsidian
 resources:
 - helmrelease-obsidian.yaml
+- ingressroute.yaml
 - repository-couchdb.yaml
 - storage.yaml
-- ingressroute.yaml

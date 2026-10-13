@@ -46,7 +46,7 @@ spec:
       couchdb:
         single_node: 'true'
         max_document_size: '50000000'
-        uuid: c2adec7d47289e24b49820b036c62e88
+        uuid: 0afbfbef23d4241573c29c761179c525
       chttpd:
         bind_address: any
         require_valid_user: 'true'
