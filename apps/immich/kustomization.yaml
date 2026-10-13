@@ -4,7 +4,7 @@ namespace: immich
 resources:
 - helmrelease-immich-backend.yaml
 - helmrelease-immich.yaml
-- repository-app.yaml
-- repository-immich.yaml
-- storage.yaml
+- helmrepository-immich.yaml
 - ingressroute.yaml
+- repository-app.yaml
+- storage.yaml

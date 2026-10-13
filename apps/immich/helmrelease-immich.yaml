@@ -10,7 +10,7 @@ spec:
   chart:
     spec:
       chart: immich
-      version: 0.8.5
+      version: 0.13.4
       sourceRef:
         kind: HelmRepository
         name: charts-immich
@@ -24,140 +24,144 @@ spec:
   driftDetection:
     mode: enabled
   values:
-    automountServiceAccountToken: false
-    controller:
-      replicas: 1
-      strategy: Recreate
-    env: &id001
-      DB_HOSTNAME: immich-postgres
-      DB_USERNAME: postgres
-      DB_DATABASE_NAME: immich
-      DB_PASSWORD:
-        valueFrom:
-          secretKeyRef:
-            name: immich-config
-            key: DB_PASSWORD
-      REDIS_HOSTNAME: immich-redis
-      IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
+    defaultPodOptions:
+      automountServiceAccountToken: false
+    controllers:
+      main:
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            env:
+              DB_HOSTNAME: immich-postgres
+              DB_USERNAME: postgres
+              DB_DATABASE_NAME: immich
+              DB_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: immich-config
+                    key: DB_PASSWORD
+              REDIS_HOSTNAME: immich-redis
+              IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
     immich:
       persistence:
         library:
           existingClaim: immich-library
-    postgresql:
-      enabled: false
-      global:
-        postgresql:
-          auth:
-            username: postgres
-            database: immich
-            password: ''
-    redis:
+    valkey:
       enabled: false
     server:
-      image:
-        repository: ghcr.io/immich-app/immich-server
-        tag: v1.131.3@sha256:7e5b6729b12b5e5cc5d98bcc6f7c27f723fabae4ee77696855808ebd5200bbf8
-        pullPolicy: IfNotPresent
-      controller:
-        replicas: 1
-        strategy: Recreate
-      resources:
-        requests:
-          cpu: 50m
-          memory: 2Gi
-        limits:
-          memory: 2Gi
-      probes:
-        startup:
-          enabled: true
-          custom: true
-          spec:
-            httpGet:
-              port: 2283
-              path: /api/server/ping
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 30
-        readiness:
-          enabled: true
-          custom: true
-          spec:
-            httpGet:
-              port: 2283
-              path: /api/server/ping
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
-        liveness:
-          enabled: true
-          custom: true
-          spec:
-            httpGet:
-              port: 2283
-              path: /api/server/ping
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
-      env: *id001
-      automountServiceAccountToken: false
+      controllers:
+        main:
+          replicas: 1
+          strategy: Recreate
+          containers:
+            main:
+              image:
+                repository: ghcr.io/immich-app/immich-server
+                tag: v3.3.1
+                digest: sha256:db996e352359771c6a3db121a0ed8761516b22f727fc092a0f46dcfef82c1bc1
+                pullPolicy: IfNotPresent
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 2Gi
+                limits:
+                  memory: 2Gi
+              probes:
+                startup:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 2283
+                      path: /api/server/ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 30
+                readiness:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 2283
+                      path: /api/server/ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 6
+                liveness:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 2283
+                      path: /api/server/ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 6
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - NET_RAW
+              ports:
+              - name: http
+                containerPort: 2283
     machine-learning:
-      image:
-        repository: ghcr.io/immich-app/immich-machine-learning
-        tag: v1.131.3@sha256:d6f07b454c0ec7e4ba3a5926fff2482f8fd1a9922b489122dec33b11a4f37bdd
-        pullPolicy: IfNotPresent
-      controller:
-        replicas: 1
-        strategy: Recreate
-      resources:
-        requests:
-          cpu: 50m
-          memory: 2Gi
-        limits:
-          memory: 2Gi
-      probes:
-        startup:
-          enabled: true
-          custom: true
-          spec:
-            httpGet:
-              port: 3003
-              path: /ping
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 30
-        readiness:
-          enabled: true
-          custom: true
-          spec:
-            httpGet:
-              port: 3003
-              path: /ping
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
-        liveness:
-          enabled: true
-          custom: true
-          spec:
-            httpGet:
-              port: 3003
-              path: /ping
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
-      env: *id001
-      automountServiceAccountToken: false
-      persistence:
-        cache:
-          enabled: true
-          type: emptyDir
-          mountPath: /cache
+      controllers:
+        main:
+          replicas: 1
+          strategy: Recreate
+          containers:
+            main:
+              image:
+                repository: ghcr.io/immich-app/immich-machine-learning
+                tag: v3.3.1
+                digest: sha256:513c831cfb010ad319341a0c86b42c575a0d5b688d3e8cae346ee624074a58ed
+                pullPolicy: IfNotPresent
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 2Gi
+                limits:
+                  memory: 2Gi
+              probes:
+                startup:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 3003
+                      path: /ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 30
+                readiness:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 3003
+                      path: /ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 6
+                liveness:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 3003
+                      path: /ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 6
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - NET_RAW
+              ports:
+              - name: http
+                containerPort: 3003
   dependsOn:
   - name: immich-backend
-  postRenderers:
-  - kustomize:
-      patches:
-      - target:
-          kind: Deployment
-          name: immich-.*
-        patch: "- op: replace\n  path: /spec/strategy\n  value: {type: Recreate}\n"

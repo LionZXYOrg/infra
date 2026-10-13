@@ -38,9 +38,10 @@ spec:
         containers:
           main:
             image:
-              repository: docker.io/tensorchord/pgvecto-rs
-              tag: pg14-v0.2.0
-              digest: sha256:90724186f0a3517cf6914295b5ab410db9ce23190a2d9d0b9dd6463e3fa298f0
+              repository: ghcr.io/immich-app/postgres
+              tag: 14-vectorchord0.4.3-pgvectors0.2.0
+              digest: sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+              pullPolicy: IfNotPresent
             ports:
             - name: http
               containerPort: 5432
@@ -53,20 +54,10 @@ spec:
                     name: immich-config
                     key: DB_PASSWORD
               POSTGRES_INITDB_ARGS: --data-checksums
-              PGDATA: /var/lib/postgresql/data/pgdata
+              PGDATA: /var/lib/postgresql/data
             args:
             - -c
-            - shared_preload_libraries=vectors.so
-            - -c
-            - search_path="$user", public, vectors
-            - -c
-            - logging_collector=on
-            - -c
-            - max_wal_size=2GB
-            - -c
-            - shared_buffers=512MB
-            - -c
-            - wal_compression=on
+            - config_file=/etc/postgresql/postgresql.conf
             resources:
               requests:
                 cpu: 50m
@@ -80,9 +71,7 @@ spec:
                 spec:
                   exec:
                     command:
-                    - sh
-                    - -c
-                    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+                    - /usr/local/bin/healthcheck.sh
                   periodSeconds: 10
                   timeoutSeconds: 5
                   failureThreshold: 30
@@ -92,11 +81,7 @@ spec:
                 spec:
                   exec:
                     command:
-                    - sh
-                    - -c
-                    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" && test "$(psql
-                      -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc 'SELECT COALESCE(SUM(checksum_failures),
-                      0) FROM pg_stat_database')" = 0
+                    - /usr/local/bin/healthcheck.sh
                   periodSeconds: 10
                   timeoutSeconds: 5
                   failureThreshold: 6
@@ -106,9 +91,7 @@ spec:
                 spec:
                   exec:
                     command:
-                    - sh
-                    - -c
-                    - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+                    - /usr/local/bin/healthcheck.sh
                   periodSeconds: 10
                   timeoutSeconds: 5
                   failureThreshold: 6
@@ -120,9 +103,10 @@ spec:
         containers:
           main:
             image:
-              repository: docker.io/redis
-              tag: 6.2-alpine
-              digest: sha256:e3b17ba9479deec4b7d1eeec1548a253acc5374d68d3b27937fcfe4df8d18c7e
+              repository: valkey/valkey
+              tag: '9'
+              digest: sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d
+              pullPolicy: IfNotPresent
             ports:
             - name: http
               containerPort: 6379

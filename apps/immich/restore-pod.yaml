@@ -22,13 +22,13 @@ spec:
       allowPrivilegeEscalation: false
     volumeMounts:
     - name: data-0
-      mountPath: /restore/immich-postgres
-    - name: data-1
       mountPath: /restore/immich-library
+    - name: data-1
+      mountPath: /restore/immich-postgres
   volumes:
   - name: data-0
     persistentVolumeClaim:
-      claimName: immich-postgres
+      claimName: immich-library
   - name: data-1
     persistentVolumeClaim:
-      claimName: immich-library
+      claimName: immich-postgres
