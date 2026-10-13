@@ -40,7 +40,7 @@ spec:
             image:
               repository: ghcr.io/librespeed/speedtest
               tag: latest
-              digest: sha256:94e627a2b29947a9ee1e39db465c2346b66ed4fce2c979e7f1c431eb1904703c
+              digest: sha256:d22e5b6ce24f1a4df21496635e9e22f4b474fa67760a17429ca667ec1ee77650
               pullPolicy: IfNotPresent
             resources:
               requests:

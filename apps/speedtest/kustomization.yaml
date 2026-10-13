@@ -3,5 +3,5 @@ kind: Kustomization
 namespace: speedtest
 resources:
 - helmrelease-speedtest.yaml
-- repository-app.yaml
 - ingressroute.yaml
+- repository-app.yaml
