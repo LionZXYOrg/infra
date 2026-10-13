@@ -3,6 +3,6 @@ kind: Kustomization
 namespace: changedetection
 resources:
 - helmrelease-changedetection.yaml
+- ingressroute.yaml
 - repository-app.yaml
 - storage.yaml
-- ingressroute.yaml
