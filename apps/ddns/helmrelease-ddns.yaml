@@ -39,8 +39,8 @@ spec:
           main:
             image:
               repository: timothyjmiller/cloudflare-ddns
-              tag: latest
-              digest: sha256:0fdb1f6086d322c2a0a72f1b8eaff98bcca1a8d069855139c5fe6a344c8c2d1d
+              tag: 2.0.2
+              digest: sha256:204c1b0c322063b49a02e1bf4c1d746d794109f54e13cbc288065717e957ed27
               pullPolicy: IfNotPresent
             resources:
               requests:
@@ -87,6 +87,10 @@ spec:
               capabilities:
                 drop:
                 - ALL
+            env:
+              IP6_PROVIDER: none
+              PUID: '1000'
+              PGID: '1000'
         forceRename: ddns
     persistence:
       config:
