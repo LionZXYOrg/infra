@@ -3,6 +3,6 @@ kind: Kustomization
 namespace: localcontentshare
 resources:
 - helmrelease-localcontentshare.yaml
+- ingressroute.yaml
 - repository-app.yaml
 - storage.yaml
-- ingressroute.yaml
