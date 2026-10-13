@@ -59,6 +59,35 @@ class WorkloadContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'credential inline'):
             migration.check_workloads('example', self.contract, self.objects)
 
+    def test_hardware_exceptions_require_exact_paths_and_a_selected_node(self):
+        pod = self.objects[1]['spec']['template']['spec']
+        pod['hostNetwork'] = True
+        pod['dnsPolicy'] = 'ClusterFirstWithHostNet'
+        pod['nodeSelector'] = {'home.kulikov.uk/automation': 'true'}
+        pod['volumes'].append({'name': 'dbus', 'hostPath': {'path': '/run/dbus'}})
+        self.contract.update(hostNetworkWorkloads=['app'], hostPaths={'app': ['/run/dbus']})
+        migration.check_workloads('example', self.contract, self.objects)
+        pod['volumes'][-1]['hostPath']['path'] = '/var/run/docker.sock'
+        with self.assertRaisesRegex(ValueError, 'unapproved host path'):
+            migration.check_workloads('example', self.contract, self.objects)
+        pod['volumes'][-1]['hostPath']['path'] = '/run/dbus'
+        pod.pop('nodeSelector')
+        with self.assertRaisesRegex(ValueError, 'node must be selected'):
+            migration.check_workloads('example', self.contract, self.objects)
+
+    def test_shared_claim_must_be_declared_and_mounted(self):
+        self.objects.pop(0)
+        self.contract['sharedClaims'] = ['data']
+        migration.check_workloads('example', self.contract, self.objects)
+        self.contract['sharedClaims'] = ['wrong']
+        with self.assertRaisesRegex(ValueError, 'dangling PVC'):
+            migration.check_workloads('example', self.contract, self.objects)
+
+    def test_new_exclusions_are_enforced(self):
+        for name in ['lionbot', 'wireguard', 'midpass', 'samba', 'QBittorrentBot']:
+            with self.subTest(service=name), self.assertRaisesRegex(ValueError, 'excluded service'):
+                migration.check_preparation(migration.ROOT, name, {}, [])
+
 
 class RepositoryMigrationTests(unittest.TestCase):
     def test_every_preparation_stays_inactive_and_registered(self):
