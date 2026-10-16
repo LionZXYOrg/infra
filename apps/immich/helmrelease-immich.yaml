@@ -65,8 +65,6 @@ spec:
                 requests:
                   cpu: 50m
                   memory: 2Gi
-                limits:
-                  memory: 2Gi
               probes:
                 startup:
                   enabled: true
@@ -121,8 +119,6 @@ spec:
               resources:
                 requests:
                   cpu: 50m
-                  memory: 2Gi
-                limits:
                   memory: 2Gi
               probes:
                 startup:
