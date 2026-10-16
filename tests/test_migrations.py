@@ -2,7 +2,9 @@
 import copy
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import migration_check as migration
@@ -95,6 +97,42 @@ class RepositoryMigrationTests(unittest.TestCase):
             with self.subTest(service=name):
                 objects = migration.definitions(migration.ROOT, name)
                 migration.check_preparation(migration.ROOT, name, contract, objects)
+
+
+class ImageBuildTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve()
+        self.context = self.root / 'apps/example/image'
+        self.context.mkdir(parents=True)
+        self.contract = {'imageBuilds': [{'context': 'apps/example/image'}]}
+
+    def test_registered_image_runs_tests_without_networking(self):
+        with patch.object(migration.subprocess, 'run', return_value=Mock(returncode=0)) as run:
+            migration.check_images(self.root, 'example', self.contract)
+        build, test = run.call_args_list
+        self.assertEqual(build.args[0], ['docker', 'build', '-t', 'infra-migration-example-0:test',
+                                        '-f', str(self.context / 'Dockerfile'), str(self.context)])
+        self.assertEqual(test.args[0], ['docker', 'run', '--rm', '--network', 'none',
+                                       '--entrypoint', 'python', 'infra-migration-example-0:test',
+                                       '-m', 'unittest', 'discover', '-s', 'tests', '-v'])
+
+    def test_unregistered_images_are_not_built(self):
+        with patch.object(migration.subprocess, 'run') as run:
+            migration.check_images(self.root, 'example', {})
+        run.assert_not_called()
+
+    def test_image_paths_cannot_escape_service_source(self):
+        cases = [
+            ({'context': 'apps/other/image'}, 'inside the service source'),
+            ({'context': 'apps/example/image', 'dockerfile': '../Dockerfile'}, 'escapes image context'),
+        ]
+        for build, message in cases:
+            with self.subTest(build=build), patch.object(migration.subprocess, 'run') as run:
+                with self.assertRaisesRegex(ValueError, message):
+                    migration.check_images(self.root, 'example', {'imageBuilds': [build]})
+                run.assert_not_called()
 
 
 if __name__ == '__main__':
