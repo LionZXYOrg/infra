@@ -7,7 +7,7 @@ spec:
   - websecure
   routes:
   - kind: Rule
-    match: Host(`portainer.test.kulikov.uk`)
+    match: Host(`portainer.kulikov.uk`)
     services:
     - name: portainer
       port: 9000

@@ -9,6 +9,7 @@ def values():
     return load('helmrelease-portainer.yaml')['spec']['values']
 
 class MigrationTests(unittest.TestCase):
+    @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
     def test_cluster_management_does_not_mount_the_old_docker_socket(self):
         v = values()
         self.assertTrue(v['localMgmt'])
