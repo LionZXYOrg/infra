@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: localcontentshare
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`localcontentshare.kulikov.uk`)
+    services:
+    - name: localcontentshare
+      port: 8080
+  tls: {}
