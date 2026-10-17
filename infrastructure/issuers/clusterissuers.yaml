@@ -11,7 +11,7 @@ spec:
     solvers:
       - selector:
           dnsZones:
-            - test.kulikov.uk
+            - kulikov.uk
         dns01:
           cloudflare:
             apiTokenSecretRef:
@@ -31,7 +31,7 @@ spec:
     solvers:
       - selector:
           dnsZones:
-            - test.kulikov.uk
+            - kulikov.uk
         dns01:
           cloudflare:
             apiTokenSecretRef:

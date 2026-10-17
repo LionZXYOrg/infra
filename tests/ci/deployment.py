@@ -108,10 +108,12 @@ class Deployment:
     def verify_migrations_suspended(self, fixture):
         for contract in sorted((fixture.infra_path / 'tests/migrations').glob('*.yaml')):
             name = contract.stem
-            namespace = yaml.safe_load(contract.read_text()).get('namespace', name)
-            obj = json.loads(self.kube(['-n', 'flux-system', 'get', 'kustomization', name, '-o', 'json']))
-            if obj['spec'].get('suspend') is not True:
-                raise RuntimeError('Prepared migration became active')
+            configuration = yaml.safe_load(contract.read_text())
+            namespace = configuration.get('namespace', name)
+            if configuration.get('phase', 'prepared') != 'active':
+                obj = json.loads(self.kube(['-n', 'flux-system', 'get', 'kustomization', name, '-o', 'json']))
+                if obj['spec'].get('suspend') is not True:
+                    raise RuntimeError('Prepared migration became active')
             pods = json.loads(self.kube(['-n', namespace, 'get', 'pods', '-o', 'json']))['items']
             releases = json.loads(self.kube(['-n', namespace, 'get', 'helmreleases', '-o', 'json']))['items']
             if pods or releases:
