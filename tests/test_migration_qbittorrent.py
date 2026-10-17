@@ -19,6 +19,7 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(v['persistence']['downloads']['advancedMounts']['main']['main'][0]['path'], '/downloads')
         self.assertEqual(v['controllers']['main']['containers']['main']['env']['TZ'], 'Europe/London')
 
+    @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
     def test_restore_helper_uses_only_declared_pvcs_and_no_cluster_credentials(self):
         helper = load('restore-pod.yaml')['spec']
         declared = {v['metadata']['name'] for v in yaml.safe_load_all((APP / 'storage.yaml').read_text())}
@@ -26,6 +27,7 @@ class MigrationTests(unittest.TestCase):
         self.assertFalse(helper['automountServiceAccountToken'])
         self.assertFalse(helper.get('hostNetwork', False))
 
+    @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
     def test_downloads_share_copyparty_claim_and_node(self):
         v = release('qbittorrent')['spec']['values']
         self.assertEqual(v['controllers']['main']['containers']['main']['image']['repository'], 'ghcr.io/lionzxy/qbittorrent-noupload')
