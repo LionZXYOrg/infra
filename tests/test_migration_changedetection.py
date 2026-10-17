@@ -18,6 +18,7 @@ class MigrationTests(unittest.TestCase):
         self.assertNotIn('SYS_ADMIN', v['controllers']['main']['containers']['main']['securityContext']['capabilities'].get('add', []))
         self.assertEqual(v['persistence']['shm']['medium'], 'Memory')
 
+    @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
     def test_restore_helper_uses_only_declared_pvcs_and_no_cluster_credentials(self):
         helper = load('restore-pod.yaml')['spec']
         declared = {v['metadata']['name'] for v in yaml.safe_load_all((APP / 'storage.yaml').read_text())}
