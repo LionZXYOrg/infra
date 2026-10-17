@@ -118,6 +118,19 @@ class FixtureTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'active migration'):
             self.fixture()
 
+    def test_completed_application_is_excluded_from_disposable_cluster(self):
+        contracts = self.source / 'tests/migrations'
+        contracts.mkdir()
+        (contracts / 'example.yaml').write_text('phase: active\nworkloads: 1\n')
+        cluster = self.source / 'clusters/home'
+        cluster.mkdir(parents=True)
+        (cluster / 'example.yaml').write_text('spec: {suspend: false}\n')
+        self.git('add', '.')
+        fixture = self.fixture()
+        isolated = yaml.safe_load((fixture.infra_path / 'tests/isolated/kustomization.yaml').read_text())
+        self.assertNotIn('migration-example.yaml', isolated['resources'])
+        self.assertFalse((fixture.infra_path / 'tests/isolated/migration-example.yaml').exists())
+
 
 class EnvironmentTests(unittest.TestCase):
     def test_ambient_secret_and_git_settings_are_removed(self):
