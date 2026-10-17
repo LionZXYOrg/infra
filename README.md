@@ -1,7 +1,7 @@
 # Home infrastructure
 
 K3s runs the services. Flux applies changes from Git once a minute.
-Traefik handles HTTPS. cert-manager renews the certificate for `*.test.kulikov.uk`.
+Traefik handles HTTPS. cert-manager renews the certificate for `*.kulikov.uk`.
 SOPS encrypts all user-managed secrets with one age key.
 
 ## Start or restore the cluster
@@ -51,7 +51,7 @@ Commit and push all changes in both repositories before bootstrap.
 
 Apply the [K3s network rules](https://docs.k3s.io/installation/requirements#networking). Keep port `6443` private.
 For public access, forward TCP ports `80` and `443` to the server.
-Point `*.test.kulikov.uk` to your public IP with Cloudflare DNS only.
+Point `*.kulikov.uk` to your public IP with Cloudflare DNS only.
 
 ```bash
 export KUBECONFIG="$HOME/.kube/home-k3s.yaml"
@@ -59,7 +59,7 @@ flux get kustomizations -A
 kubectl get nodes
 ```
 
-Open `https://demo.test.kulikov.uk`.
+Open `https://demo.kulikov.uk`.
 The kubeconfig file gives you cluster access. To fetch only that file, add `--fetch-kubeconfig` to the bootstrap command.
 Do not replace the recovery key during a restore. Back up its password outside Git.
 Git restores configuration, not databases or stored files. Back up that data separately.
@@ -69,7 +69,7 @@ Git restores configuration, not databases or stored files. Back up that data sep
 Use `apps/demo/` as a template for the image, ports, probes, storage, and HTTPS
 route. Add the service's namespace under `infrastructure/namespaces/` and a Flux
 Kustomization under `clusters/home/`; include both in their resource lists.
-Use `myapp.test.kulikov.uk` for the route and `tls: {}` for the shared certificate.
+Use `myapp.kulikov.uk` for the route and `tls: {}` for the shared certificate.
 
 If the service needs a secret, update the private module first:
 
