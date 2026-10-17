@@ -7,7 +7,7 @@ spec:
   - websecure
   routes:
   - kind: Rule
-    match: Host(`transfersh.test.kulikov.uk`)
+    match: Host(`transfersh.kulikov.uk`)
     services:
     - name: transfersh
       port: 8080
