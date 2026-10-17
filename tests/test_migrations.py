@@ -99,6 +99,58 @@ class RepositoryMigrationTests(unittest.TestCase):
                 migration.check_preparation(migration.ROOT, name, contract, objects)
 
 
+class MigrationPhaseTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        for directory in ['apps/example', 'clusters/home', 'infrastructure/namespaces']:
+            (self.root / directory).mkdir(parents=True)
+        self.contract = {'source': {'commit': 'ccfc5ecd5433fa0d7fe3844f167612b8ed6e2297'},
+                         'charts': {'example': {'chart': 'example', 'version': '1', 'sha256': 'a' * 64}}}
+        self.objects = [{'kind': 'HelmRelease', 'metadata': {'name': 'example'}, 'spec': {
+            'suspend': True, 'chart': {'spec': {'chart': 'example', 'version': '1'}}}}]
+        self.flux = {'spec': {'suspend': True, 'path': './apps/example',
+            'dependsOn': [{'name': 'infra-tls'}, {'name': 'cluster-secrets'}],
+            'healthChecks': [{'kind': 'HelmRelease', 'name': 'example'}]}}
+        (self.root / 'clusters/home/kustomization.yaml').write_text('resources: [example.yaml]\n')
+        (self.root / 'infrastructure/namespaces/kustomization.yaml').write_text('resources: [example.yaml]\n')
+        (self.root / 'apps/example/MIGRATION.md').write_text('```bash\n:\n```\n\n```bash\ngit status\n```\n')
+
+    def check(self):
+        import yaml
+        (self.root / 'clusters/home/example.yaml').write_text(yaml.safe_dump(self.flux))
+        migration.check_preparation(self.root, 'example', self.contract, self.objects)
+
+    def test_preparation_cannot_enable_either_controller(self):
+        self.check()
+        self.flux['spec']['suspend'] = False
+        with self.assertRaisesRegex(ValueError, 'migration phase'):
+            self.check()
+        self.flux['spec']['suspend'] = True
+        self.objects[0]['spec']['suspend'] = False
+        with self.assertRaisesRegex(ValueError, 'migration phase'):
+            self.check()
+
+    def test_completed_phase_requires_both_controls_and_cleanup(self):
+        self.contract['phase'] = 'active'
+        with self.assertRaisesRegex(ValueError, 'migration phase'):
+            self.check()
+        self.flux['spec']['suspend'] = False
+        self.objects[0]['spec']['suspend'] = False
+        with self.assertRaisesRegex(ValueError, 'remove completed migration'):
+            self.check()
+        (self.root / 'apps/example/MIGRATION.md').unlink()
+        self.check()
+        (self.root / 'apps/example/restore-pod.yaml').write_text('temporary')
+        with self.assertRaisesRegex(ValueError, 'remove completed restore'):
+            self.check()
+
+    def test_old_test_hostname_is_rejected(self):
+        self.objects.append({'kind': 'IngressRoute', 'spec': {'entryPoints': ['websecure'], 'tls': {},
+            'routes': [{'match': 'Host(`example.test.kulikov.uk`)'}]}})
+        with self.assertRaisesRegex(ValueError, 'kulikov.uk host'):
+            self.check()
+
+
 class ImageBuildTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()

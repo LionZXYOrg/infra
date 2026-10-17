@@ -104,6 +104,14 @@ class FixtureSet:
         for contract in sorted((infra / 'tests/migrations').glob('*.yaml')):
             name = contract.stem
             migration = yaml.safe_load((infra / 'clusters/home' / f'{name}.yaml').read_text())
+            phase = yaml.safe_load(contract.read_text()).get('phase', 'prepared')
+            if phase == 'active':
+                if migration['spec'].get('suspend') is not False:
+                    raise ValueError('Completed migration is still suspended')
+                # Active production applications must never enter the disposable cluster.
+                continue
+            if phase != 'prepared':
+                raise ValueError('Invalid migration phase in disposable fixture')
             if migration['spec'].get('suspend') is not True:
                 raise ValueError('Refusing an active migration in disposable preparation tests')
             destination = f'migration-{name}.yaml'
