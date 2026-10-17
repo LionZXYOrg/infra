@@ -1,0 +1,112 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: transfersh
+spec:
+  releaseName: transfersh
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: app-template
+      version: 5.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: charts-app
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+    controllers:
+      main:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: dutchcoders/transfer.sh
+              tag: latest
+              digest: sha256:0e139d840a43d7cdd0f8d930dbffde5016cb2b79c6c12a984ab184fbc0c85327
+              pullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8080
+                    path: /health.html
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8080
+                    path: /health.html
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8080
+                    path: /health.html
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            env:
+              PURGE_INTERVAL: '24'
+              PURGE_DAYS: '1'
+              BASEDIR: /storage/
+            ports:
+            - name: http
+              containerPort: 8080
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+            args:
+            - --provider=local
+            - --listener=:8080
+        forceRename: transfersh
+    service:
+      main:
+        controller: main
+        type: ClusterIP
+        ports:
+          http:
+            port: 8080
+            targetPort: http
+        forceRename: transfersh
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        advancedMounts:
+          main:
+            main:
+            - path: /storage
+        existingClaim: transfersh-storage
