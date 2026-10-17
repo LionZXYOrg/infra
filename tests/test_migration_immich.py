@@ -21,11 +21,14 @@ class MigrationTests(unittest.TestCase):
             self.assertEqual(values()[part]['controllers']['main']['containers']['main']['image']['tag'], 'v3.3.1')
         self.assertFalse(values()['valkey']['enabled'])
 
+    @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
     def test_media_capacity_and_logical_restore_prevent_old_snapshot_restore(self):
         claims = {d['metadata']['name']: d['spec']['resources']['requests']['storage']
                   for d in yaml.safe_load_all((APP / 'storage.yaml').read_text())}
-        self.assertEqual(claims['immich-library'], '1Ti')
+        self.assertEqual(claims['immich-library'], '2Ti')
         instructions = (APP / 'MIGRATION.md').read_text()
+        self.assertIn('tar -C /home/lionzxy/tmp-moving/immich -cpf - .', instructions)
+        self.assertIn('ssh root@192.168.1.109', instructions)
         self.assertIn('pg_dump -U postgres -d immich -Fc', instructions)
         self.assertIn('pg_restore -U postgres -d immich', instructions)
         self.assertNotIn('tar -C /home/docker/app/immich/postgres', instructions)

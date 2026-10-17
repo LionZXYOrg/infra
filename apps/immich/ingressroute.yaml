@@ -7,7 +7,7 @@ spec:
   - websecure
   routes:
   - kind: Rule
-    match: Host(`immich.test.kulikov.uk`)
+    match: Host(`immich.kulikov.uk`)
     services:
     - name: immich-server
       port: 2283

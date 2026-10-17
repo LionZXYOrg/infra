@@ -11,7 +11,7 @@ spec:
   storageClassName: local-path
   resources:
     requests:
-      storage: 1Ti
+      storage: 2Ti
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
