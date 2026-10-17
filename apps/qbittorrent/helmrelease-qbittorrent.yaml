@@ -1,0 +1,136 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: qbittorrent
+spec:
+  releaseName: qbittorrent
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: app-template
+      version: 5.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: charts-app
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                home.kulikov.uk/shared-data: copyparty
+            topologyKey: kubernetes.io/hostname
+    controllers:
+      main:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: ghcr.io/lionzxy/qbittorrent-noupload
+              tag: sha-4299e22
+              digest: sha256:3f7a6e318addabed809795f49da824fd0d5f4174078ea945d0336b5dce18ff13
+              pullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: 50m
+                memory: 512Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 8080
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 8080
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 8080
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            env:
+              PUID: '1000'
+              PGID: '1000'
+              TZ: Europe/London
+              WEBUI_PORT: '8080'
+              TORRENTING_PORT: '6881'
+            ports:
+            - name: http
+              containerPort: 8080
+            - name: peer-tcp
+              containerPort: 6881
+            - name: peer-udp
+              containerPort: 6881
+              protocol: UDP
+        forceRename: qbittorrent
+    service:
+      main:
+        controller: main
+        type: ClusterIP
+        ports:
+          http:
+            port: 8080
+            targetPort: http
+        forceRename: qbittorrent
+      peer:
+        controller: main
+        type: LoadBalancer
+        forceRename: qbittorrent-peer
+        ports:
+          tcp:
+            port: 6881
+            targetPort: peer-tcp
+            protocol: TCP
+          udp:
+            port: 6881
+            targetPort: peer-udp
+            protocol: UDP
+    persistence:
+      config:
+        type: persistentVolumeClaim
+        advancedMounts:
+          main:
+            main:
+            - path: /config
+        existingClaim: qbittorrent-config
+      downloads:
+        type: persistentVolumeClaim
+        advancedMounts:
+          main:
+            main:
+            - path: /downloads
+              subPath: downloads
+        existingClaim: copyparty-data
