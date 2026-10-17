@@ -40,10 +40,13 @@ def definitions(root, name):
 
 def check_preparation(root, name, contract, objects):
     require(name.lower() not in EXCLUDED, f'{name}: explicitly excluded service')
+    phase = contract.get('phase', 'prepared')
+    require(phase in {'prepared', 'active'}, f'{name}: invalid migration phase')
+    suspended = phase == 'prepared'
     require(contract['source']['commit'] == 'ccfc5ecd5433fa0d7fe3844f167612b8ed6e2297',
             f'{name}: snapshot provenance changed; review inventory')
     flux = load(root / 'clusters/home' / f'{name}.yaml')
-    require(flux['spec'].get('suspend') is True, f'{name}: preparation must stay suspended')
+    require(flux['spec'].get('suspend') is suspended, f'{name}: suspension does not match migration phase')
     require(flux['spec']['path'] == f'./apps/{name}', f'{name}: wrong Flux path')
     require({'infra-tls', 'cluster-secrets'}.issubset({x['name'] for x in flux['spec']['dependsOn']}),
             f'{name}: missing production dependencies')
@@ -54,7 +57,7 @@ def check_preparation(root, name, contract, objects):
             f'{name}: namespace registration missing')
     hrs = [o for o in objects if o['kind'] == 'HelmRelease']
     require(bool(hrs), f'{name}: no Helm release')
-    require(all(h['spec'].get('suspend') is True for h in hrs), f'{name}: release is not suspended')
+    require(all(h['spec'].get('suspend') is suspended for h in hrs), f'{name}: release suspension does not match migration phase')
     require({h['metadata']['name'] for h in hrs} == set(contract['charts']), f'{name}: chart lock mismatch')
     health = {(x['kind'], x['name']) for x in flux['spec']['healthChecks']}
     require({('HelmRelease', h['metadata']['name']) for h in hrs} == health, f'{name}: incomplete Flux health checks')
@@ -70,14 +73,20 @@ def check_preparation(root, name, contract, objects):
                     f'{name}: PVC is not protected from Flux pruning')
         if o['kind'] == 'IngressRoute':
             require(o['spec']['entryPoints'] == ['websecure'] and 'tls' in o['spec'], f'{name}: route lacks TLS')
-            require(f"Host(`{name}.test.kulikov.uk`)" == o['spec']['routes'][0]['match'],
-                    f'{name}: preparation must use the staging host')
+            require(f"Host(`{name}.kulikov.uk`)" == o['spec']['routes'][0]['match'],
+                    f'{name}: route must use the kulikov.uk host')
     instructions = root / 'apps' / name / 'MIGRATION.md'
+    if not suspended:
+        require(not instructions.exists(), f'{name}: remove completed migration commands')
+        require(not list((root / 'apps' / name).glob('restore*.yaml')),
+                f'{name}: remove completed restore helpers')
+        return
     require(instructions.is_file(), f'{name}: storage commands missing')
     text = instructions.read_text().strip()
-    require(text.startswith('```bash\n') and text.endswith('\n```') and text.count('```') == 2,
-            f'{name}: migration file must contain one Bash command block')
-    commands = text.removeprefix('```bash\n').removesuffix('\n```')
+    blocks = re.findall(r'```bash\n(.*?)\n```', text, re.S)
+    require(1 <= len(blocks) <= 2 and '\n\n'.join('```bash\n' + block + '\n```' for block in blocks) == text,
+            f'{name}: migration file must contain storage and optional activation command blocks')
+    commands = '\n'.join(blocks)
     require(not re.search(r'(^|[|\s])(age|gpg|sops)(\s|$)', commands),
             f'{name}: storage commands must not encrypt data')
     result = subprocess.run(['bash', '-n'], input=commands.encode(), capture_output=True)
