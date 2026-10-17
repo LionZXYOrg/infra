@@ -1,0 +1,89 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: warden
+spec:
+  releaseName: warden
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: vaultwarden
+      version: 0.46.3
+      sourceRef:
+        kind: HelmRepository
+        name: charts-vaultwarden
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    fullnameOverride: warden
+    image:
+      registry: docker.io
+      repository: vaultwarden/server
+      tag: 1.37.2-alpine@sha256:d16a304c2476fd787634ddde2c00be8fdfa1a72539438c626ece3686b5b88ab4
+    replicas: 1
+    resourceType: Deployment
+    strategy:
+      type: Recreate
+    domain: https://warden.kulikov.uk
+    signupsAllowed: false
+    signupsVerify: 'false'
+    invitationsAllowed: true
+    webVaultEnabled: 'true'
+    enableServiceLinks: false
+    adminToken:
+      existingSecret: warden-config
+      existingSecretKey: ADMIN_TOKEN
+    smtp:
+      existingSecret: warden-config
+    pushNotifications:
+      existingSecret: warden-config
+      enabled: false
+    yubico:
+      existingSecret: warden-config
+    duo:
+      existingSecret: warden-config
+    storage:
+      existingVolumeClaim:
+        claimName: warden-data
+        dataPath: /data
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+    startupProbe:
+      enabled: true
+      failureThreshold: 30
+      path: /alive
+    livenessProbe:
+      enabled: true
+      path: /alive
+    readinessProbe:
+      enabled: true
+      path: /alive
+    ingress:
+      enabled: false
+  postRenderers:
+  - kustomize:
+      patches:
+      - target:
+          kind: Deployment
+          name: warden
+        patch: "- op: add\n  path: /spec/template/spec/automountServiceAccountToken\n\
+          \  value: false\n"
