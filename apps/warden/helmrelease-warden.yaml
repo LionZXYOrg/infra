@@ -33,7 +33,7 @@ spec:
     resourceType: Deployment
     strategy:
       type: Recreate
-    domain: https://warden.test.kulikov.uk
+    domain: https://warden.kulikov.uk
     signupsAllowed: false
     signupsVerify: 'false'
     invitationsAllowed: true
