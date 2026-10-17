@@ -1,0 +1,90 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: obsidian
+spec:
+  releaseName: obsidian
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: couchdb
+      version: 4.6.3
+      sourceRef:
+        kind: HelmRepository
+        name: charts-couchdb
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    clusterSize: 1
+    createAdminSecret: false
+    allowAdminParty: false
+    extraSecretName: obsidian-config
+    autoSetup:
+      enabled: false
+    networkPolicy:
+      enabled: false
+    serviceAccount:
+      enabled: false
+    image:
+      repository: couchdb
+      tag: 3.5.1@sha256:ccea1e8035bf7afd68336e24056a1ca9c1c46d7abe42da686322c0ac7218e5c2
+    initImage:
+      repository: busybox
+      tag: 1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+    persistentVolume:
+      enabled: false
+    couchdbConfig:
+      couchdb:
+        single_node: 'true'
+        max_document_size: '50000000'
+        uuid: 0afbfbef23d4241573c29c761179c525
+      chttpd:
+        bind_address: any
+        require_valid_user: 'true'
+        enable_cors: 'true'
+        max_http_request_size: '50000000'
+      httpd:
+        enable_cors: 'true'
+      cors:
+        origins: app://obsidian.md,capacitor://localhost,http://localhost
+        credentials: 'true'
+        methods: GET,PUT,POST,HEAD,DELETE
+        headers: accept,authorization,content-type,origin,referer
+    podSecurityContext:
+      fsGroup: 5984
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 512Mi
+    initResources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 60
+    readinessProbe:
+      enabled: true
+  postRenderers:
+  - kustomize:
+      patches:
+      - target:
+          kind: StatefulSet
+          name: obsidian-couchdb
+        patch: "- op: add\n  path: /spec/template/spec/automountServiceAccountToken\n\
+          \  value: false\n- op: replace\n  path: /spec/template/spec/volumes/2\n\
+          \  value:\n    name: database-storage\n    persistentVolumeClaim:\n    \
+          \  claimName: obsidian-data\n"
