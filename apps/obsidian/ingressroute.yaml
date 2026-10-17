@@ -7,7 +7,7 @@ spec:
   - websecure
   routes:
   - kind: Rule
-    match: Host(`obsidian.test.kulikov.uk`)
+    match: Host(`obsidian.kulikov.uk`)
     services:
     - name: obsidian-svc-couchdb
       port: 5984
