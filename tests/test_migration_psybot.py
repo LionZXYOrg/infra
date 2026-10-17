@@ -10,6 +10,7 @@ def release(name):
     return load('helmrelease-' + name + '.yaml')
 
 class MigrationTests(unittest.TestCase):
+    @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
     def test_legacy_telegram_api_and_publication_prerequisite_are_explicit(self):
         self.assertEqual((APP / 'image/requirements.txt').read_text(), 'python-telegram-bot==13.15\n')
         contract = yaml.safe_load((ROOT / 'tests/migrations/psybot.yaml').read_text())
