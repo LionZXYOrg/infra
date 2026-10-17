@@ -21,6 +21,7 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(v['persistence']['radio-1']['hostPathType'], 'CharDevice')
         self.assertEqual(v['controllers']['matter-hub']['containers']['main']['env']['HAMH_HOME_ASSISTANT_URL'], 'http://homeassist-homeassistant:8123/')
 
+    @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
     def test_restore_rewrites_the_docker_only_matter_address(self):
         instructions = (APP / 'MIGRATION.md').read_text()
         self.assertIn('ws://host.docker.internal:5580/ws', instructions)

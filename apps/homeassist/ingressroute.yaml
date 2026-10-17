@@ -7,7 +7,7 @@ spec:
   - websecure
   routes:
   - kind: Rule
-    match: Host(`homeassist.test.kulikov.uk`)
+    match: Host(`homeassist.kulikov.uk`)
     services:
     - name: homeassist-homeassistant
       port: 8123
