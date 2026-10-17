@@ -7,7 +7,7 @@ spec:
   - websecure
   routes:
   - kind: Rule
-    match: Host(`speedtest.test.kulikov.uk`)
+    match: Host(`speedtest.kulikov.uk`)
     services:
     - name: speedtest
       port: 8080
