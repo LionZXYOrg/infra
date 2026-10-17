@@ -14,21 +14,38 @@ import yaml
 if __package__:
     from .fixtures import FixtureSet, command
     from .git_server import GitServer
+    from .monitoring import verify_monitoring, verify_rule_tests
 else:
     from fixtures import FixtureSet, command
     from git_server import GitServer
+    from monitoring import verify_monitoring, verify_rule_tests
 
 
 KUSTOMIZATIONS = ('flux-system', 'infra-namespaces', 'cluster-secrets',
-                  'infra-controllers', 'infra-tls', 'apps')
+                  'infra-controllers', 'infra-tls', 'apps', 'infra-monitoring', 'monitoring-config')
 
 
 def safe_resource_status(objects: list[dict]) -> list[dict]:
-    return [{'kind': obj.get('kind'), 'name': obj.get('metadata', {}).get('name'),
+    records = [{'kind': obj.get('kind'), 'name': obj.get('metadata', {}).get('name'),
              'namespace': obj.get('metadata', {}).get('namespace'),
              'conditions': [{key: condition.get(key) for key in ('type', 'status', 'reason')}
                             for condition in obj.get('status', {}).get('conditions', [])]}
             for obj in objects]
+    for obj, record in zip(objects, records):
+        if obj.get('kind') != 'Pod':
+            continue
+        status = obj.get('status', {})
+        record['containers'] = []
+        for container in status.get('initContainerStatuses', []) + status.get('containerStatuses', []):
+            state = container.get('state', {})
+            previous = container.get('lastState', {}).get('terminated', {})
+            record['containers'].append({
+                'name': container.get('name'), 'ready': container.get('ready'),
+                'restartCount': container.get('restartCount'),
+                'waitingReason': state.get('waiting', {}).get('reason'),
+                'terminatedReason': state.get('terminated', {}).get('reason'),
+                'lastTerminatedReason': previous.get('reason'), 'lastExitCode': previous.get('exitCode')})
+    return records
 
 
 class Deployment:
@@ -99,11 +116,13 @@ class Deployment:
         for name in ('flux-system', 'infra-secrets'):
             self.wait('gitrepository', name, 'flux-system')
         for name in KUSTOMIZATIONS:
-            self.wait('kustomization', name, 'flux-system', '900s' if name == 'infra-controllers' else '300s')
+            self.wait('kustomization', name, 'flux-system', '900s' if name in {'infra-controllers', 'infra-monitoring'} else '300s')
         for namespace, name in (('traefik', 'traefik'), ('cert-manager', 'cert-manager')):
             self.wait('helmrelease', name, namespace)
         self.wait('certificate', 'isolated-tls', 'traefik')
         self.kube(['-n', 'demo', 'rollout', 'status', 'deployment/demo', '--timeout=180s'])
+        verify_monitoring(self)
+        verify_rule_tests(self)
 
     def verify_migrations_suspended(self, fixture):
         for contract in sorted((fixture.infra_path / 'tests/migrations').glob('*.yaml')):
@@ -141,6 +160,8 @@ class Deployment:
         self.passed_check('sops-initial-decryption')
         self.verify_https()
         self.passed_check('trusted-https')
+        self.passed_check('monitoring-targets-dashboards-persistence-rules')
+        self.passed_check('monitoring-alert-rule-behaviour')
         self.verify_no_production_resources()
         self.passed_check('production-resources-absent')
         self.verify_migrations_suspended(fixture)
@@ -160,7 +181,7 @@ class Deployment:
 
     def diagnostics(self):
         records = []
-        for resource in ('nodes', 'deployments', 'gitrepositories', 'kustomizations', 'helmreleases', 'certificates'):
+        for resource in ('nodes', 'pods', 'deployments', 'gitrepositories', 'kustomizations', 'helmreleases', 'certificates'):
             try:
                 raw = self.kube(['get', resource, '-A', '-o', 'json', '--request-timeout=10s'])
                 records.extend(safe_resource_status(json.loads(raw)['items']))

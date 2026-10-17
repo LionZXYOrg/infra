@@ -1,0 +1,131 @@
+rule_files:
+- rules.yaml
+evaluation_interval: 1m
+tests:
+- name: Flux sustained failure waits fifteen minutes
+  interval: 1m
+  input_series:
+  - series: gotk_resource_info{customresource_kind="HelmRelease",exported_namespace="demo",name="demo",ready="False",suspended="false"}
+    values: 1x30
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FluxReconciliationFailed
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: FluxReconciliationFailed
+    exp_alerts:
+    - &id001
+      exp_labels:
+        customresource_kind: HelmRelease
+        exported_namespace: demo
+        name: demo
+        severity: warning
+      exp_annotations:
+        summary: Flux reconciliation is not ready
+        description: HelmRelease demo/demo has not been ready for 15 minutes.
+- name: Flux unknown readiness is a failure
+  interval: 1m
+  input_series:
+  - series: gotk_resource_info{customresource_kind="HelmRelease",exported_namespace="demo",name="demo",ready="Unknown"}
+    values: 1x30
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: FluxReconciliationFailed
+    exp_alerts:
+    - *id001
+- name: Flux healthy and intentionally suspended resources do not page
+  interval: 1m
+  input_series:
+  - series: gotk_resource_info{customresource_kind="HelmRelease",exported_namespace="demo",name="demo",ready="True",suspended="false"}
+    values: 1x30
+  - series: gotk_resource_info{customresource_kind="HelmRelease",exported_namespace="demo",name="demo",ready="False",suspended="true"}
+    values: 1x30
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FluxReconciliationFailed
+    exp_alerts: []
+- name: Transient failure recovers before notification delay
+  interval: 1m
+  input_series:
+  - series: gotk_resource_info{customresource_kind="HelmRelease",exported_namespace="demo",name="demo",ready="False"}
+    values: 1x5 stale
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FluxReconciliationFailed
+    exp_alerts: []
+- name: Missing Flux collector is detectable
+  interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FluxStateMetricsMissing
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: FluxStateMetricsMissing
+    exp_alerts:
+    - exp_labels:
+        customresource_kind: Kustomization
+        exported_namespace: flux-system
+        name: flux-system
+        severity: warning
+      exp_annotations:
+        summary: Flux resource-state metrics are missing
+        description: Check kube-state-metrics custom-resource configuration, RBAC, and its scrape target.
+- name: Present Flux collector suppresses missing-data alert
+  interval: 1m
+  input_series:
+  - series: gotk_resource_info{customresource_kind="Kustomization",exported_namespace="flux-system",name="flux-system",ready="True"}
+    values: 1x30
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FluxStateMetricsMissing
+    exp_alerts: []
+- name: Certificate readiness preserves the certificate namespace
+  interval: 1m
+  input_series:
+  - series: certmanager_certificate_ready_status{namespace="traefik",name="isolated-tls",condition="True"}
+    values: '0x30'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: HomeCertificateNotReady
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: HomeCertificateNotReady
+    exp_alerts:
+    - exp_labels:
+        namespace: traefik
+        name: isolated-tls
+        severity: critical
+      exp_annotations:
+        summary: A TLS certificate is not ready
+        description: Certificate traefik/isolated-tls has not been ready for 15 minutes.
+- name: Expiring certificate warns
+  interval: 1m
+  input_series:
+  - series: certmanager_certificate_expiration_timestamp_seconds{namespace="traefik",name="isolated-tls"}
+    values: 300000x30
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: HomeCertificateExpiringSoon
+    exp_alerts:
+    - exp_labels:
+        namespace: traefik
+        name: isolated-tls
+        severity: warning
+      exp_annotations:
+        summary: A TLS certificate expires in less than seven days
+        description: Check renewal for certificate traefik/isolated-tls.
+- name: Healthy certificate and exact seven-day boundary do not warn
+  interval: 1m
+  input_series:
+  - series: certmanager_certificate_ready_status{namespace="traefik",name="isolated-tls",condition="True"}
+    values: 1x30
+  - series: certmanager_certificate_expiration_timestamp_seconds{namespace="traefik",name="isolated-tls"}
+    values: 605760x30
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: HomeCertificateNotReady
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: HomeCertificateExpiringSoon
+    exp_alerts: []

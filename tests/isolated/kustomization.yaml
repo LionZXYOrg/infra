@@ -4,3 +4,4 @@ resources:
   - foundation.yaml
   - secrets-source.yaml
   - sync.yaml
+  - monitoring.yaml

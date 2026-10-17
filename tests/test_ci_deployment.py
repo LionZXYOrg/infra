@@ -15,6 +15,19 @@ class DeploymentTests(unittest.TestCase):
         self.work = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.runner = deployment.Deployment(self.work / 'kubeconfig', '192.0.2.10', self.work / 'report')
 
+    def test_container_diagnostics_keep_reasons_without_sensitive_fields(self):
+        pod = {'kind': 'Pod', 'metadata': {'name': 'grafana', 'namespace': 'monitoring',
+                'annotations': {'private': 'sentinel-annotation'}},
+               'spec': {'containers': [{'name': 'sidecar', 'env': [{'value': 'sentinel-environment'}]}]},
+               'status': {'containerStatuses': [{'name': 'sidecar', 'ready': False, 'restartCount': 3,
+                   'state': {'waiting': {'reason': 'CrashLoopBackOff', 'message': 'sentinel-message'}},
+                   'lastState': {'terminated': {'reason': 'OOMKilled', 'exitCode': 137,
+                                                'message': 'sentinel-termination'}}}]}}
+        records = deployment.safe_resource_status([pod])
+        self.assertEqual(records[0]['containers'][0]['lastTerminatedReason'], 'OOMKilled')
+        self.assertEqual(records[0]['containers'][0]['lastExitCode'], 137)
+        self.assertNotIn('sentinel-', json.dumps(records))
+
     def test_every_kubernetes_command_uses_explicit_kubeconfig(self):
         with patch.object(deployment, 'command', return_value=b'') as run:
             self.runner.kube(['get', 'nodes'])
