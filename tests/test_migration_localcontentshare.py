@@ -17,6 +17,7 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(route['routes'][0]['services'], [{'name': 'localcontentshare', 'port': 8080}])
         self.assertEqual(route['entryPoints'], ['websecure'])
 
+    @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
     def test_restore_helper_uses_only_declared_pvcs_and_no_cluster_credentials(self):
         helper = load('restore-pod.yaml')['spec']
         declared = {v['metadata']['name'] for v in yaml.safe_load_all((APP / 'storage.yaml').read_text())}

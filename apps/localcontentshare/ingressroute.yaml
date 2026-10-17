@@ -7,7 +7,7 @@ spec:
   - websecure
   routes:
   - kind: Rule
-    match: Host(`localcontentshare.test.kulikov.uk`)
+    match: Host(`localcontentshare.kulikov.uk`)
     services:
     - name: localcontentshare
       port: 8080
