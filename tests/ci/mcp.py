@@ -20,8 +20,12 @@ class Client:
         self.url = f'https://{address}:8443/mcp'
         self.authorization = 'Basic ' + base64.b64encode(('ci-mcp:' + password).encode()).decode()
         self.session = ''
+        self.request_id = 0
 
-    def request(self, method, params=None, *, authorization=True, origin=None, request_id=1):
+    def request(self, method, params=None, *, authorization=True, origin=None, request_id='auto'):
+        if request_id == 'auto':
+            self.request_id += 1
+            request_id = self.request_id
         headers = {'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream'}
         if authorization:
             headers['Authorization'] = self.authorization if authorization is True else authorization
@@ -91,6 +95,10 @@ def verify_endpoint(runner, fixture):
         if status != 200 or not ('error' in response or response.get('result', {}).get('isError') is True):
             raise MCPFailure('denied-tool-' + name, status)
     runner.passed_check('mcp-secret-and-write-tool-denial')
+    verify_permissions(runner)
+
+
+def verify_permissions(runner):
     # Check authorization in Kubernetes independently of the server's tool filter.
     for verb, resource, subresource, namespace, allowed in (
         ('list', 'pods', None, 'demo', True), ('get', 'pods', 'log', 'demo', True),
@@ -103,10 +111,16 @@ def verify_endpoint(runner, fixture):
             attributes['subresource'] = subresource
         if namespace:
             attributes['namespace'] = namespace
-        review = {'apiVersion': 'authorization.k8s.io/v1', 'kind': 'SelfSubjectAccessReview',
-                  'spec': {'resourceAttributes': attributes}}
-        response = json.loads(runner.kube([
-            '--as=system:serviceaccount:k3s-mcp:k3s-mcp', '--as-group=system:authenticated',
-            'create', '-f', '-', '-o', 'json'], data=json.dumps(review).encode()))
+        review = {'apiVersion': 'authorization.k8s.io/v1', 'kind': 'SubjectAccessReview',
+                  'spec': {'user': 'system:serviceaccount:k3s-mcp:k3s-mcp',
+                           'groups': ['system:authenticated', 'system:serviceaccounts',
+                                      'system:serviceaccounts:k3s-mcp'],
+                           'resourceAttributes': attributes}}
+        try:
+            response = json.loads(runner.kube([
+                'create', '--raw', '/apis/authorization.k8s.io/v1/subjectaccessreviews', '-f', '-'],
+                data=json.dumps(review).encode()))
+        except RuntimeError:
+            raise MCPFailure('kubernetes-authorization-review') from None
         if response.get('status', {}).get('allowed') is not allowed:
             raise MCPFailure('rbac-' + verb + '-' + resource)
