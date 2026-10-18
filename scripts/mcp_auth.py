@@ -76,7 +76,7 @@ def export_client(server_ip: str, directory: Path):
     directory.chmod(0o700)
     authorization = 'Basic ' + base64.b64encode(data['username'] + b':' + data['password']).decode()
     url = f'https://{address}:8443/mcp'
-    configuration = {'mcp': {'k3s-lan': {'type': 'remote', 'url': url,
+    configuration = {'mcp': {'k3s-lan': {'type': 'remote', 'url': url, 'oauth': False,
                                       'headers': {'Authorization': authorization}}}}
     secure_write(directory / 'ca.crt', ca)
     secure_write(directory / 'opencode.json', (json.dumps(configuration, indent=2) + '\n').encode())
