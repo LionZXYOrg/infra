@@ -237,9 +237,19 @@ def ensure_secrets_access(kube: list[str], env: dict[str, str], owner: str, repo
             data=raw, env=env)
 
 
+def cluster_settings(server_ip: str) -> dict:
+    address = ipaddress.IPv4Address(server_ip)
+    networks = map(ipaddress.ip_network, ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'))
+    require(any(address in network for network in networks), 'SERVER_IP must be a private LAN address for MCP.')
+    return {'apiVersion': 'v1', 'kind': 'ConfigMap',
+            'metadata': {'name': 'cluster-settings', 'namespace': 'flux-system'},
+            'data': {'SERVER_IP': server_ip}}
+
+
 def bootstrap_flux(kubeconfig: Path, identity: bytes, owner: str, repo: str, version: str,
                    *, branch: str, personal: bool, private: bool,
-                   secrets_owner: str, secrets_repo: str) -> None:
+                   secrets_owner: str, secrets_repo: str, server_ip: str) -> None:
+    settings = cluster_settings(server_ip)
     env = os.environ.copy()
     env['KUBECONFIG'] = str(kubeconfig)
     # No secret env is passed to arbitrary git/ssh processes.
@@ -250,6 +260,8 @@ def bootstrap_flux(kubeconfig: Path, identity: bytes, owner: str, repo: str, ver
     namespace = {'apiVersion': 'v1', 'kind': 'Namespace', 'metadata': {'name': 'flux-system'}}
     apply = kube + ['apply', '--server-side', '--field-manager=home-bootstrap', '-f', '-']
     capture(apply, data=json.dumps(namespace).encode(), env=env)
+    # Flux substitutes this address into the MCP IP certificate and Service.
+    capture(apply, data=json.dumps(settings).encode(), env=env)
     existing = capture(kube + ['-n', 'flux-system', 'get', 'secret', 'sops-age',
                                '--ignore-not-found', '-o', 'json'], env=env)
     if existing.strip():
@@ -325,7 +337,7 @@ def main() -> None:
     if identity is not None:
         bootstrap_flux(kubeconfig, identity, owner, repo, os.environ['FLUX_VERSION'],
                        branch=branch, personal=personal, private=info['private'],
-                       secrets_owner=secrets_owner, secrets_repo=secrets_repo)
+                       secrets_owner=secrets_owner, secrets_repo=secrets_repo, server_ip=ip)
     print('\nReady. In your current terminal run:')
     print('export KUBECONFIG="$HOME/.kube/home-k3s.yaml"')
     print('kubectl config current-context  # expected: home-test')
