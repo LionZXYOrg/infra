@@ -1,0 +1,80 @@
+# Credentials are minted on a trusted workstation using TokenRequest; never
+# commit a ServiceAccount token (or any Secret) to the public repository.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k3s-mcp
+  namespace: k3s-mcp
+automountServiceAccountToken: false
+---
+# The built-in view role does not include cluster-scoped nodes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k3s-mcp-node-reader
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
+---
+# Read-only visibility into CRDs relevant to the home Flux/K3s stack.
+# Do not grant Secrets or pod exec, even for troubleshooting.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k3s-mcp-custom-reader
+rules:
+  - apiGroups: [kustomize.toolkit.fluxcd.io]
+    resources: [kustomizations]
+    verbs: [get, list, watch]
+  - apiGroups: [helm.toolkit.fluxcd.io]
+    resources: [helmreleases]
+    verbs: [get, list, watch]
+  - apiGroups: [source.toolkit.fluxcd.io]
+    resources: [gitrepositories, helmrepositories, helmcharts, ocirepositories, buckets]
+    verbs: [get, list, watch]
+  - apiGroups: [traefik.io]
+    resources: [ingressroutes, middlewares, traefikservices]
+    verbs: [get, list, watch]
+  - apiGroups: [helm.cattle.io]
+    resources: [helmcharts, helmchartconfigs]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k3s-mcp-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: k3s-mcp
+    namespace: k3s-mcp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k3s-mcp-node-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k3s-mcp-node-reader
+subjects:
+  - kind: ServiceAccount
+    name: k3s-mcp
+    namespace: k3s-mcp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k3s-mcp-custom-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k3s-mcp-custom-reader
+subjects:
+  - kind: ServiceAccount
+    name: k3s-mcp
+    namespace: k3s-mcp
