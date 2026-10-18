@@ -14,11 +14,11 @@ import yaml
 if __package__:
     from .fixtures import FixtureSet, command
     from .git_server import GitServer
-    from .mcp import verify_endpoint
+    from .mcp import MCPFailure, verify_endpoint
 else:
     from fixtures import FixtureSet, command
     from git_server import GitServer
-    from mcp import verify_endpoint
+    from mcp import MCPFailure, verify_endpoint
 
 
 KUSTOMIZATIONS = ('flux-system', 'infra-namespaces', 'cluster-secrets',
@@ -220,6 +220,9 @@ def main():
             server.repositories.update(fixture.repositories)
             report.update(runner.run(fixture))
             report['success'] = True
+    except MCPFailure as error:
+        report['mcp_assertion'] = {'name': error.assertion, 'http_status': error.status}
+        raise
     finally:
         report['passed'] = list(runner.passed)
         if not report['success']:

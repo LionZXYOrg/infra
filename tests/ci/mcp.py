@@ -6,6 +6,13 @@ from urllib.error import HTTPError
 from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 
 
+class MCPFailure(RuntimeError):
+    def __init__(self, assertion, status=None):
+        super().__init__('MCP assertion failed; response contents suppressed')
+        self.assertion = assertion
+        self.status = status
+
+
 class Client:
     def __init__(self, address, ca, password):
         context = ssl.create_default_context(cadata=ca.decode())
@@ -42,9 +49,9 @@ class Client:
         return status, json.loads(raw)
 
 
-def assert_result(status, response):
+def assert_result(status, response, assertion):
     if status != 200 or 'result' not in response or response['result'].get('isError'):
-        raise RuntimeError('MCP request failed; response contents suppressed')
+        raise MCPFailure(assertion, status)
     return response['result']
 
 
@@ -57,28 +64,33 @@ def verify_endpoint(runner, fixture):
                                            (True, 'https://untrusted.invalid', 403)):
         status, _ = client.request('initialize', initialize, authorization=authorization, origin=origin)
         if status != expected:
-            raise RuntimeError('MCP accepted missing credentials, wrong credentials, or an untrusted origin')
-    assert_result(*client.request('initialize', initialize, origin=f'https://{runner.node_ip}:8443'))
+            raise MCPFailure('unauthorized-request', status)
+    runner.passed_check('mcp-rejects-unauthorized-requests-and-origins')
+    assert_result(*client.request('initialize', initialize, origin=f'https://{runner.node_ip}:8443'), 'initialize')
     status, _ = client.request('notifications/initialized', request_id=None)
     if status != 202:
-        raise RuntimeError('MCP initialization notification failed')
+        raise MCPFailure('initialized-notification', status)
+    runner.passed_check('mcp-initialization')
     status, _ = client.request('tools/list', authorization=False)
     if status != 401:
-        raise RuntimeError('MCP session bypassed authentication')
-    tools = assert_result(*client.request('tools/list'))['tools']
+        raise MCPFailure('session-authentication', status)
+    tools = assert_result(*client.request('tools/list'), 'tools-list')['tools']
     if not tools or any(tool.get('annotations', {}).get('readOnlyHint') is not True for tool in tools):
-        raise RuntimeError('MCP advertised a tool that is not read-only')
+        raise MCPFailure('tools-read-only')
+    runner.passed_check('mcp-read-only-tools')
     pods = assert_result(*client.request('tools/call', {
-        'name': 'pods_list_in_namespace', 'arguments': {'namespace': 'demo'}}))
+        'name': 'pods_list_in_namespace', 'arguments': {'namespace': 'demo'}}), 'pod-list')
     if 'demo' not in json.dumps(pods):
-        raise RuntimeError('MCP could not read the disposable demo pod')
+        raise MCPFailure('pod-list-result')
+    runner.passed_check('mcp-pod-read')
     for name, arguments in (
         ('resources_get', {'apiVersion': 'v1', 'kind': 'Secret', 'namespace': 'demo', 'name': 'isolated-probe'}),
         ('resources_delete', {'apiVersion': 'v1', 'kind': 'ConfigMap', 'namespace': 'demo', 'name': 'demo-page'}),
     ):
         status, response = client.request('tools/call', {'name': name, 'arguments': arguments})
         if status != 200 or not ('error' in response or response.get('result', {}).get('isError') is True):
-            raise RuntimeError('MCP failed to reject a Secret read or write tool')
+            raise MCPFailure('denied-tool-' + name, status)
+    runner.passed_check('mcp-secret-and-write-tool-denial')
     # Check authorization in Kubernetes independently of the server's tool filter.
     for verb, resource, subresource, namespace, allowed in (
         ('list', 'pods', None, 'demo', True), ('get', 'pods', 'log', 'demo', True),
@@ -97,4 +109,4 @@ def verify_endpoint(runner, fixture):
             '--as=system:serviceaccount:k3s-mcp:k3s-mcp', '--as-group=system:authenticated',
             'create', '-f', '-', '-o', 'json'], data=json.dumps(review).encode()))
         if response.get('status', {}).get('allowed') is not allowed:
-            raise RuntimeError('MCP Kubernetes permissions do not match the read-only contract')
+            raise MCPFailure('rbac-' + verb + '-' + resource)
