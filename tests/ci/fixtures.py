@@ -1,10 +1,12 @@
 """Generate local Git/SOPS fixtures exclusively from the public checkout."""
 import base64
+import bcrypt
 from dataclasses import dataclass
 import os
 from pathlib import Path, PurePosixPath
 import secrets
 import subprocess
+from urllib.parse import urlsplit
 import yaml
 
 
@@ -73,6 +75,7 @@ class FixtureSet:
     secrets_url: str
     infra_revision: str = ''
     secrets_revision: str = ''
+    mcp_password: str = ''
 
     @classmethod
     def create(cls, source: Path, work: Path, base_url: str):
@@ -101,6 +104,12 @@ class FixtureSet:
         # Test the preparation locks through Flux without starting real applications.
         isolated_root = infra / 'tests/isolated/kustomization.yaml'
         isolated = yaml.safe_load(isolated_root.read_text())
+        if (infra / 'clusters/home/mcp-endpoint.yaml').exists():
+            for name in ('mcp', 'mcp-endpoint'):
+                destination = f'{name}.yaml'
+                (isolated_root.parent / destination).write_bytes(
+                    (infra / 'clusters/home' / destination).read_bytes())
+                isolated['resources'].append(destination)
         for contract in sorted((infra / 'tests/migrations').glob('*.yaml')):
             name = contract.stem
             migration = yaml.safe_load((infra / 'clusters/home' / f'{name}.yaml').read_text())
@@ -118,9 +127,19 @@ class FixtureSet:
             (isolated_root.parent / destination).write_text(yaml.safe_dump(migration, sort_keys=False))
             isolated['resources'].append(destination)
         isolated_root.write_text(yaml.safe_dump(isolated, sort_keys=False))
+        private_resources = ['probe.sops.yaml']
+        if (infra / 'clusters/home/mcp-endpoint.yaml').exists():
+            fixture.mcp_password = secrets.token_urlsafe(32)
+            users = b'ci-mcp:' + bcrypt.hashpw(fixture.mcp_password.encode(), bcrypt.gensalt()) + b'\n'
+            auth = {'apiVersion': 'v1', 'kind': 'Secret', 'type': 'Opaque',
+                    'metadata': {'name': 'mcp-http-auth', 'namespace': 'k3s-mcp'},
+                    'data': {'users': base64.b64encode(users).decode()}}
+            path = private / 'mcp-auth.sops.yaml'
+            fixture.encrypt_secret(auth, path)
+            private_resources.append(path.name)
         (private / 'kustomization.yaml').write_text(yaml.safe_dump({
             'apiVersion': 'kustomize.config.k8s.io/v1beta1', 'kind': 'Kustomization',
-            'resources': ['probe.sops.yaml']}))
+            'resources': private_resources}))
         fixture.write_probe(b'isolated-value-one')
         fixture.infra_revision = commit(infra, 'Public infrastructure CI fixture')
         fixture.secrets_revision = commit(private, 'Disposable encrypted CI probe')
@@ -134,12 +153,15 @@ class FixtureSet:
         obj = {'apiVersion': 'v1', 'kind': 'Secret', 'type': 'Opaque',
                'metadata': {'name': 'isolated-probe', 'namespace': 'demo'},
                'data': {'probe': base64.b64encode(value).decode()}}
+        self.encrypt_secret(obj, self.probe_path)
+
+    def encrypt_secret(self, obj: dict, path: Path):
         encrypted = command(['sops', '--config', str(self.config_path), '--encrypt',
-                             '--filename-override', str(self.probe_path),
+                             '--filename-override', str(path),
                              '--input-type', 'yaml', '--output-type', 'yaml', '/dev/stdin'],
                             data=yaml.safe_dump(obj).encode())
-        self.probe_path.write_bytes(encrypted)
-        self.probe_path.chmod(0o600)
+        path.write_bytes(encrypted)
+        path.chmod(0o600)
 
     def update_probe(self, value: bytes) -> str:
         self.write_probe(value)
@@ -148,7 +170,9 @@ class FixtureSet:
         return self.secrets_revision
 
     def bootstrap_objects(self) -> list[dict]:
-        objects = []
+        objects = [{'apiVersion': 'v1', 'kind': 'ConfigMap',
+                    'metadata': {'name': 'cluster-settings', 'namespace': 'flux-system'},
+                    'data': {'SERVER_IP': urlsplit(self.infra_url).hostname}}]
         for alias, name in (('infra.git', 'flux-system'), ('secrets.git', 'infra-secrets')):
             _, username, password = self.repositories[alias]
             objects.append({'apiVersion': 'v1', 'kind': 'Secret', 'type': 'Opaque',
