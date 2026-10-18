@@ -70,6 +70,7 @@ class AuthTests(unittest.TestCase):
         for name in ('opencode.json', 'curl.conf', 'ca.crt'):
             self.assertEqual(stat.S_IMODE((directory / name).stat().st_mode), 0o600)
         entry = json.loads((directory / 'opencode.json').read_text())['mcp']['k3s-lan']
+        self.assertEqual(entry['type'], 'remote')
         self.assertEqual(entry['url'], 'https://192.168.1.150:8443/mcp')
         self.assertIs(entry['oauth'], False)
         self.assertTrue(entry['headers']['Authorization'].startswith('Basic '))
