@@ -70,6 +70,7 @@ class DeploymentTests(unittest.TestCase):
                 patch.object(self.runner, 'wait'), patch.object(self.runner, 'verify_ready') as ready, \
                 patch.object(self.runner, 'verify_probe') as probe, \
                 patch.object(self.runner, 'verify_https') as https, \
+                patch.object(deployment, 'verify_endpoint') as mcp, \
                 patch.object(self.runner, 'verify_no_production_resources') as isolated, \
                 patch.object(self.runner, 'flux') as flux, \
                 patch.object(deployment, 'command', return_value=b'components'):
@@ -79,6 +80,7 @@ class DeploymentTests(unittest.TestCase):
         fixture.update_probe.assert_called_once_with(b'isolated-value-two')
         self.assertEqual(ready.call_count, 2)
         self.assertEqual(https.call_count, 2)
+        self.assertEqual(mcp.call_count, 2)
         self.assertEqual(isolated.call_count, 2)
         self.assertEqual([call.args[0][2] for call in flux.call_args_list], ['cluster-secrets', 'flux-system'])
         self.assertIn('repeat-reconciliation', report['passed'])

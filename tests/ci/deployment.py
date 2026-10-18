@@ -14,13 +14,15 @@ import yaml
 if __package__:
     from .fixtures import FixtureSet, command
     from .git_server import GitServer
+    from .mcp import verify_endpoint
 else:
     from fixtures import FixtureSet, command
     from git_server import GitServer
+    from mcp import verify_endpoint
 
 
 KUSTOMIZATIONS = ('flux-system', 'infra-namespaces', 'cluster-secrets',
-                  'infra-controllers', 'infra-tls', 'apps')
+                  'infra-controllers', 'infra-tls', 'apps', 'cluster-mcp-rbac', 'cluster-mcp-endpoint')
 
 
 def safe_resource_status(objects: list[dict]) -> list[dict]:
@@ -87,7 +89,8 @@ class Deployment:
         if any('acme' in obj.get('spec', {}) for obj in issuers):
             raise RuntimeError('Unexpected production ACME issuer in isolated deployment')
         certificates = json.loads(self.kube(['get', 'certificates', '-A', '-o', 'json']))['items']
-        if any((obj['metadata']['namespace'], obj['metadata']['name']) != ('traefik', 'isolated-tls')
+        allowed_certificates = {('traefik', 'isolated-tls'), ('k3s-mcp', 'mcp-ca'), ('k3s-mcp', 'mcp-lan')}
+        if any((obj['metadata']['namespace'], obj['metadata']['name']) not in allowed_certificates
                for obj in certificates):
             raise RuntimeError('Unexpected production certificate in isolated deployment')
         names = self.kube(['get', 'secrets', '-A', '-o',
@@ -104,6 +107,8 @@ class Deployment:
             self.wait('helmrelease', name, namespace)
         self.wait('certificate', 'isolated-tls', 'traefik')
         self.kube(['-n', 'demo', 'rollout', 'status', 'deployment/demo', '--timeout=180s'])
+        self.wait('helmrelease', 'k3s-mcp', 'k3s-mcp')
+        self.wait('certificate', 'mcp-lan', 'k3s-mcp')
 
     def verify_migrations_suspended(self, fixture):
         for contract in sorted((fixture.infra_path / 'tests/migrations').glob('*.yaml')):
@@ -141,6 +146,8 @@ class Deployment:
         self.passed_check('sops-initial-decryption')
         self.verify_https()
         self.passed_check('trusted-https')
+        verify_endpoint(self, fixture)
+        self.passed_check('mcp-trusted-ip-tls-authentication-and-read-only-access')
         self.verify_no_production_resources()
         self.passed_check('production-resources-absent')
         self.verify_migrations_suspended(fixture)
@@ -152,6 +159,7 @@ class Deployment:
         self.flux(['reconcile', 'kustomization', 'flux-system', '--with-source', '--timeout=5m'])
         self.verify_ready()
         self.verify_https()
+        verify_endpoint(self, fixture)
         self.verify_no_production_resources()
         self.verify_migrations_suspended(fixture)
         self.passed_check('repeat-reconciliation')

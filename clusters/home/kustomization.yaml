@@ -4,6 +4,7 @@ resources:
   - flux-system
   - foundation.yaml
   - mcp.yaml
+  - mcp-endpoint.yaml
   - secrets-source.yaml
   - infrastructure.yaml
   - apps.yaml

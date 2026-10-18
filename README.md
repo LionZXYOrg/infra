@@ -100,15 +100,91 @@ new module pointer, run `git submodule update secrets`. Secret changes require a
 commit and push inside `secrets/`, followed by a commit of the module pointer here.
 Keep real secret files and recovery material in that private repository.
 
-## Read-only K3s MCP access
+## MCP access over the LAN
+
+The MCP endpoint is `https://SERVER_IP:8443/mcp`, with HTTP Basic authentication over HTTPS.
+For this cluster, the LAN address is `192.168.1.150`.
+The official [Kubernetes MCP chart](https://github.com/containers/kubernetes-mcp-server/tree/v0.0.67/charts/kubernetes-mcp-server) uses the existing read-only account.
+Kubernetes blocks writes, Secret reads, and commands in pods.
+The server also filters out write tools and blocks Secret resources.
+
+The gateway requires a password for every MCP request.
+The backend listens only on the loopback address inside its pod.
+Only port `8443` is exposed on `SERVER_IP`.
+The endpoint does not use a public domain or the shared Traefik routes.
+Do not forward port `8443` through the router. That would expose the endpoint outside the LAN.
+
+Keep credentials in the private `k3s-mcp/mcp-http-auth.sops.yaml` Secret.
+Merge the private credentials PR before the public endpoint PR.
+On an existing cluster, set the address before merging the public PR.
+Run these commands on the workstation with the administrator kubeconfig:
+
+```bash
+export KUBECONFIG="$HOME/.kube/home-k3s.yaml"
+export SERVER_IP=192.168.1.150
+kubectl -n flux-system create configmap cluster-settings \
+  --from-literal=SERVER_IP="$SERVER_IP" --dry-run=client -o yaml | kubectl apply -f -
+```
+
+New bootstrap runs store their `SERVER_IP` value in this ConfigMap automatically.
+If the address or credentials are absent, the endpoint cannot become ready.
+Flux installs the server after the account, secrets, and certificate controller are ready.
+cert-manager creates a private certificate authority (CA), which signs the certificate for the IP address.
+The gateway loads renewed certificates without a restart.
+
+After merging both PRs, wait for the endpoint:
+
+```bash
+flux reconcile kustomization flux-system --with-source
+kubectl -n flux-system wait kustomization/cluster-mcp-endpoint \
+  --for=condition=Ready --timeout=10m
+```
+
+On your trusted workstation, install the Python requirements in `.venv`.
+Initialize the private module before exporting client credentials.
+Use your local SOPS identity to unlock the credentials.
+The export command also reads the public CA certificate through your administrator kubeconfig.
+
+```bash
+git submodule update --init secrets
+.venv/bin/python scripts/mcp_auth.py client --server-ip "$SERVER_IP"
+```
+
+The command writes `ca.crt`, `curl.conf`, and `opencode.json` under `~/.config/k3s-mcp/`.
+The directory uses mode `0700`. Each file uses mode `0600`.
+Copy the `mcp` entry from that protected JSON file into your OpenCode configuration.
+Start OpenCode with the CA certificate:
+
+```bash
+NODE_EXTRA_CA_CERTS="$HOME/.config/k3s-mcp/ca.crt" opencode
+```
+
+For another MCP client, use the same URL, Authorization header, and CA certificate.
+Keep the exported files outside Git. They contain the password.
+Do not disable certificate validation.
+To test the connection with curl, run:
+
+```bash
+curl --config "$HOME/.config/k3s-mcp/curl.conf" \
+  --header 'Content-Type: application/json' \
+  --header 'Accept: application/json, text/event-stream' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
+```
+
+For a new installation without the encrypted credential file, run `python3 scripts/mcp_auth.py create` first.
+This helper uses `secretctl.py` to encrypt a random password and its authentication hash.
+Commit and push the private module before updating its pointer in the public repository.
+The Deployment tests use disposable credentials and make sure that unauthorized requests and writes fail.
+
+## Local MCP access through stdio
 
 Flux installs a dedicated `k3s-mcp` ServiceAccount and read-only RBAC bindings
 from `infrastructure/mcp/` through the `cluster-mcp-rbac` Kustomization. This
 lets [ry-ops/k3s-mcp-server](https://github.com/ry-ops/k3s-mcp-server) inspect
 pods, logs, nodes, Flux resources and Traefik routes. It **cannot** read Kubernetes
 Secrets, exec into pods, or alter cluster objects. No token or kubeconfig is
-stored in Git. The MCP server uses **stdio on your workstation**, not a cluster
-Deployment or a remotely exposed HTTP endpoint.
+stored in Git. This optional setup uses stdio on your workstation.
+The LAN endpoint above uses a separate server in the cluster with the same read-only account.
 
 After the Flux Kustomization is ready, mint a temporary read-only kubeconfig **on
 your workstation**, using an admin kubeconfig for this step only:
