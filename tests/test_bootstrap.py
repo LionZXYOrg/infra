@@ -115,6 +115,13 @@ class CheckoutTests(unittest.TestCase):
 
 
 class FluxArgumentsTests(unittest.TestCase):
+    def test_mcp_configuration_rejects_addresses_outside_private_lan(self):
+        for address in ('178.62.76.162', '127.0.0.1', '0.0.0.0', 'not-an-ip'):
+            with self.subTest(address=address):
+                with self.assertRaises(ValueError):
+                    bootstrap.cluster_settings(address)
+        self.assertEqual(bootstrap.cluster_settings('192.168.1.150')['data']['SERVER_IP'], '192.168.1.150')
+
     def test_branch_and_owner_reach_flux_and_git(self):
         for branch, personal in [('master', False), ('main', True), ('release/home', False)]:
             with self.subTest(branch=branch, personal=personal):
@@ -123,13 +130,14 @@ class FluxArgumentsTests(unittest.TestCase):
                         return b'unit-test-token'
                     return b''
 
-                with patch.object(bootstrap, 'capture', side_effect=capture_output), \
+                with patch.object(bootstrap, 'capture', side_effect=capture_output) as capture, \
                         patch.object(bootstrap, 'visible') as visible, \
                         patch.object(bootstrap, 'ensure_secrets_access', create=True):
                     bootstrap.bootstrap_flux(Path('/tmp/test-kubeconfig'), b'test-identity',
                                              'example-owner', 'infra', 'v2.9.6',
                                              branch=branch, personal=personal, private=False,
-                                             secrets_owner='example-owner', secrets_repo='infra-secrets')
+                                             secrets_owner='example-owner', secrets_repo='infra-secrets',
+                                             server_ip='192.168.1.150')
                 calls = visible.call_args_list
                 flux_call = next(call for call in calls if call.args[0][:3] == ['flux', 'bootstrap', 'github'])
                 self.assertIn(f'--branch={branch}', flux_call.args[0])
@@ -140,6 +148,11 @@ class FluxArgumentsTests(unittest.TestCase):
                 git_call = next(call for call in calls if call.args[0][:2] == ['git', 'pull'])
                 self.assertEqual(git_call.args[0], ['git', 'pull', '--ff-only', 'origin', f'refs/heads/{branch}'])
                 self.assertNotIn('GITHUB_TOKEN', git_call.kwargs['env'])
+                applied = [json.loads(call.kwargs['data']) for call in capture.call_args_list
+                           if call.args[0][0] == 'kubectl' and 'apply' in call.args[0]]
+                settings = next(obj for obj in applied if obj['kind'] == 'ConfigMap')
+                self.assertEqual(settings['metadata'], {'name': 'cluster-settings', 'namespace': 'flux-system'})
+                self.assertEqual(settings['data'], {'SERVER_IP': '192.168.1.150'})
 
 
 class PrivateSourceTests(unittest.TestCase):
