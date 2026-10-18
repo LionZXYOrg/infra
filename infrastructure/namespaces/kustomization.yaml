@@ -4,4 +4,5 @@ resources:
 - birthday-reminder.yaml
 - cert-manager.yaml
 - demo.yaml
+- k3s-mcp.yaml
 - traefik.yaml
