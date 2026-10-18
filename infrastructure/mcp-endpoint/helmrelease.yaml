@@ -1,0 +1,176 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: kubernetes-mcp-server
+spec:
+  interval: 1h
+  url: oci://ghcr.io/containers/charts/kubernetes-mcp-server
+  ref:
+    digest: sha256:31612b5a69c2ab88463fafbb5f0bfbc7ce8a33ffdae286fa39c3169e546ecb60
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: k3s-mcp
+spec:
+  releaseName: k3s-mcp
+  interval: 10m
+  timeout: 5m
+  chartRef:
+    kind: OCIRepository
+    name: kubernetes-mcp-server
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    fullnameOverride: k3s-mcp
+    image:
+      registry: quay.io
+      repository: containers/kubernetes_mcp_server
+      # v0.0.67, including ARM64 and AMD64.
+      version: sha256:e47f6ccc5347e1ea6be495d8d9ab55ac8a995fe87800fb984fa770cebe14ad44
+    serviceAccount:
+      create: false
+      name: k3s-mcp
+      automountToken: false
+    rbac:
+      create: false
+    ingress:
+      enabled: false
+    httpRoute:
+      enabled: false
+    service:
+      type: ClusterIP
+      port: 8443
+      targetPort: https
+    config:
+      port: "8080"
+      bind_address: "127.0.0.1"
+      read_only: true
+      cluster_auth_mode: kubeconfig
+      cluster_provider_strategy: in-cluster
+      toolsets: [core]
+      denied_resources:
+        - group: ""
+          version: v1
+          kind: Secret
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
+    podSecurityContext:
+      fsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      limits: null
+      requests:
+        cpu: 50m
+        memory: 128Mi
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: 8443
+        scheme: HTTPS
+      initialDelaySeconds: 10
+      periodSeconds: 20
+    readinessProbe:
+      httpGet:
+        path: /healthz
+        port: 8443
+        scheme: HTTPS
+      periodSeconds: 5
+    extraVolumes:
+      - name: api-identity
+        projected:
+          defaultMode: 0440
+          sources:
+            - serviceAccountToken:
+                path: token
+                expirationSeconds: 3600
+            - configMap:
+                name: kube-root-ca.crt
+                items:
+                  - key: ca.crt
+                    path: ca.crt
+            - downwardAPI:
+                items:
+                  - path: namespace
+                    fieldRef:
+                      fieldPath: metadata.namespace
+      - name: gateway-configuration
+        configMap:
+          name: mcp-gateway
+      - name: gateway-auth
+        secret:
+          secretName: mcp-http-auth
+          defaultMode: 0440
+          items:
+            - key: users
+              path: users
+      - name: gateway-tls
+        secret:
+          secretName: mcp-lan-tls
+          defaultMode: 0440
+      - name: gateway-tmp
+        emptyDir:
+          sizeLimit: 64Mi
+    extraVolumeMounts:
+      - name: api-identity
+        mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        readOnly: true
+    extraContainers:
+      - name: gateway
+        image: nginxinc/nginx-unprivileged@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6
+        command: [nginx, -g, "daemon off;"]
+        ports:
+          - name: https
+            containerPort: 8443
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        volumeMounts:
+          - name: gateway-configuration
+            mountPath: /etc/nginx/nginx.conf
+            subPath: nginx.conf
+            readOnly: true
+          - name: gateway-auth
+            mountPath: /etc/auth
+            readOnly: true
+          - name: gateway-tls
+            mountPath: /etc/tls
+            readOnly: true
+          - name: gateway-tmp
+            mountPath: /tmp
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              version: v1
+              kind: Service
+              name: k3s-mcp
+            patch: |
+              - op: add
+                path: /spec/externalIPs
+                value: ["${SERVER_IP}"]
