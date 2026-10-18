@@ -1,0 +1,24 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cluster-mcp-endpoint
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: cluster-mcp-rbac
+    - name: infra-controllers
+    - name: cluster-secrets
+  interval: 10m
+  retryInterval: 1m
+  timeout: 10m
+  path: ./infrastructure/mcp-endpoint
+  prune: true
+  wait: true
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-settings
+        optional: false
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
