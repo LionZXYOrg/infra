@@ -148,6 +148,7 @@ The export command also reads the public CA certificate through your administrat
 ```bash
 git submodule update --init secrets
 .venv/bin/python scripts/mcp_auth.py client --server-ip "$SERVER_IP"
+unset KUBECONFIG
 ```
 
 The command writes `ca.crt`, `curl.conf`, and `opencode.json` under `~/.config/k3s-mcp/`.
