@@ -1,0 +1,17 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cluster-mcp-rbac
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-namespaces
+  interval: 10m
+  retryInterval: 1m
+  timeout: 2m
+  path: ./infrastructure/mcp
+  prune: true
+  wait: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
