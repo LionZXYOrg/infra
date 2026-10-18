@@ -1,0 +1,48 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: mcp-selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mcp-ca
+spec:
+  isCA: true
+  commonName: Home MCP CA
+  secretName: mcp-ca
+  duration: 87600h
+  renewBefore: 8760h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Never
+  issuerRef:
+    kind: Issuer
+    name: mcp-selfsigned
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: mcp-ca
+spec:
+  ca:
+    secretName: mcp-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mcp-lan
+spec:
+  secretName: mcp-lan-tls
+  ipAddresses:
+    - ${SERVER_IP}
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    kind: Issuer
+    name: mcp-ca
