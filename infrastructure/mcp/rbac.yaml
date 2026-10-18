@@ -1,5 +1,5 @@
-# Credentials are minted on a trusted workstation using TokenRequest; never
-# commit a ServiceAccount token (or any Secret) to the public repository.
+# Kubernetes projects a rotating token into the MCP server container only.
+# Never commit a ServiceAccount token or Secret to the public repository.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

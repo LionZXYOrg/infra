@@ -70,6 +70,7 @@ class DeploymentTests(unittest.TestCase):
                 patch.object(self.runner, 'wait'), patch.object(self.runner, 'verify_ready') as ready, \
                 patch.object(self.runner, 'verify_probe') as probe, \
                 patch.object(self.runner, 'verify_https') as https, \
+                patch.object(deployment, 'verify_endpoint') as mcp, \
                 patch.object(self.runner, 'verify_no_production_resources') as isolated, \
                 patch.object(self.runner, 'flux') as flux, \
                 patch.object(deployment, 'command', return_value=b'components'):
@@ -79,6 +80,7 @@ class DeploymentTests(unittest.TestCase):
         fixture.update_probe.assert_called_once_with(b'isolated-value-two')
         self.assertEqual(ready.call_count, 2)
         self.assertEqual(https.call_count, 2)
+        self.assertEqual(mcp.call_count, 2)
         self.assertEqual(isolated.call_count, 2)
         self.assertEqual([call.args[0][2] for call in flux.call_args_list], ['cluster-secrets', 'flux-system'])
         self.assertIn('repeat-reconciliation', report['passed'])
@@ -166,6 +168,17 @@ class DeploymentTests(unittest.TestCase):
             with self.subTest(node=node), patch.object(self.runner, 'kube', side_effect=kube):
                 with self.assertRaisesRegex(RuntimeError, 'Refusing'):
                     self.runner.verify_fresh_cluster()
+
+    def test_pod_diagnostics_keep_reasons_without_messages_or_container_arguments(self):
+        objects = [{'kind': 'Pod', 'metadata': {'name': 'gateway'},
+                    'spec': {'containers': [{'env': [{'value': 'sentinel'}]}]},
+                    'status': {'containerStatuses': [{'name': 'gateway', 'ready': False, 'restartCount': 2,
+                        'state': {'waiting': {'reason': 'CrashLoopBackOff', 'message': 'sentinel'}},
+                        'lastState': {'terminated': {'reason': 'Error', 'exitCode': 1, 'message': 'sentinel'}}}]}}]
+        records = deployment.safe_resource_status(objects)
+        self.assertNotIn('sentinel', json.dumps(records))
+        self.assertEqual(records[0]['containers'][0]['waitingReason'], 'CrashLoopBackOff')
+        self.assertEqual(records[0]['containers'][0]['lastExitCode'], 1)
 
 
 class HostGuardTests(unittest.TestCase):

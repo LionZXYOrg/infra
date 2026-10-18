@@ -14,21 +14,38 @@ import yaml
 if __package__:
     from .fixtures import FixtureSet, command
     from .git_server import GitServer
+    from .mcp import MCPFailure, verify_endpoint
 else:
     from fixtures import FixtureSet, command
     from git_server import GitServer
+    from mcp import MCPFailure, verify_endpoint
 
 
 KUSTOMIZATIONS = ('flux-system', 'infra-namespaces', 'cluster-secrets',
-                  'infra-controllers', 'infra-tls', 'apps')
+                  'infra-controllers', 'infra-tls', 'apps', 'cluster-mcp-rbac', 'cluster-mcp-endpoint')
 
 
 def safe_resource_status(objects: list[dict]) -> list[dict]:
-    return [{'kind': obj.get('kind'), 'name': obj.get('metadata', {}).get('name'),
+    records = [{'kind': obj.get('kind'), 'name': obj.get('metadata', {}).get('name'),
              'namespace': obj.get('metadata', {}).get('namespace'),
              'conditions': [{key: condition.get(key) for key in ('type', 'status', 'reason')}
                             for condition in obj.get('status', {}).get('conditions', [])]}
             for obj in objects]
+    for obj, record in zip(objects, records):
+        if obj.get('kind') != 'Pod':
+            continue
+        status = obj.get('status', {})
+        record['containers'] = []
+        for container in status.get('initContainerStatuses', []) + status.get('containerStatuses', []):
+            state = container.get('state', {})
+            previous = container.get('lastState', {}).get('terminated', {})
+            record['containers'].append({
+                'name': container.get('name'), 'ready': container.get('ready'),
+                'restartCount': container.get('restartCount'),
+                'waitingReason': state.get('waiting', {}).get('reason'),
+                'terminatedReason': state.get('terminated', {}).get('reason'),
+                'lastTerminatedReason': previous.get('reason'), 'lastExitCode': previous.get('exitCode')})
+    return records
 
 
 class Deployment:
@@ -87,7 +104,8 @@ class Deployment:
         if any('acme' in obj.get('spec', {}) for obj in issuers):
             raise RuntimeError('Unexpected production ACME issuer in isolated deployment')
         certificates = json.loads(self.kube(['get', 'certificates', '-A', '-o', 'json']))['items']
-        if any((obj['metadata']['namespace'], obj['metadata']['name']) != ('traefik', 'isolated-tls')
+        allowed_certificates = {('traefik', 'isolated-tls'), ('k3s-mcp', 'mcp-ca'), ('k3s-mcp', 'mcp-lan')}
+        if any((obj['metadata']['namespace'], obj['metadata']['name']) not in allowed_certificates
                for obj in certificates):
             raise RuntimeError('Unexpected production certificate in isolated deployment')
         names = self.kube(['get', 'secrets', '-A', '-o',
@@ -104,6 +122,8 @@ class Deployment:
             self.wait('helmrelease', name, namespace)
         self.wait('certificate', 'isolated-tls', 'traefik')
         self.kube(['-n', 'demo', 'rollout', 'status', 'deployment/demo', '--timeout=180s'])
+        self.wait('helmrelease', 'k3s-mcp', 'k3s-mcp')
+        self.wait('certificate', 'mcp-lan', 'k3s-mcp')
 
     def verify_migrations_suspended(self, fixture):
         for contract in sorted((fixture.infra_path / 'tests/migrations').glob('*.yaml')):
@@ -141,6 +161,8 @@ class Deployment:
         self.passed_check('sops-initial-decryption')
         self.verify_https()
         self.passed_check('trusted-https')
+        verify_endpoint(self, fixture)
+        self.passed_check('mcp-trusted-ip-tls-authentication-and-read-only-access')
         self.verify_no_production_resources()
         self.passed_check('production-resources-absent')
         self.verify_migrations_suspended(fixture)
@@ -152,6 +174,7 @@ class Deployment:
         self.flux(['reconcile', 'kustomization', 'flux-system', '--with-source', '--timeout=5m'])
         self.verify_ready()
         self.verify_https()
+        verify_endpoint(self, fixture)
         self.verify_no_production_resources()
         self.verify_migrations_suspended(fixture)
         self.passed_check('repeat-reconciliation')
@@ -160,7 +183,7 @@ class Deployment:
 
     def diagnostics(self):
         records = []
-        for resource in ('nodes', 'deployments', 'gitrepositories', 'kustomizations', 'helmreleases', 'certificates'):
+        for resource in ('nodes', 'pods', 'deployments', 'gitrepositories', 'kustomizations', 'helmreleases', 'certificates'):
             try:
                 raw = self.kube(['get', resource, '-A', '-o', 'json', '--request-timeout=10s'])
                 records.extend(safe_resource_status(json.loads(raw)['items']))
@@ -197,6 +220,9 @@ def main():
             server.repositories.update(fixture.repositories)
             report.update(runner.run(fixture))
             report['success'] = True
+    except MCPFailure as error:
+        report['mcp_assertion'] = {'name': error.assertion, 'http_status': error.status}
+        raise
     finally:
         report['passed'] = list(runner.passed)
         if not report['success']:
