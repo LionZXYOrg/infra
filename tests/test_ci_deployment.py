@@ -169,6 +169,17 @@ class DeploymentTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'Refusing'):
                     self.runner.verify_fresh_cluster()
 
+    def test_pod_diagnostics_keep_reasons_without_messages_or_container_arguments(self):
+        objects = [{'kind': 'Pod', 'metadata': {'name': 'gateway'},
+                    'spec': {'containers': [{'env': [{'value': 'sentinel'}]}]},
+                    'status': {'containerStatuses': [{'name': 'gateway', 'ready': False, 'restartCount': 2,
+                        'state': {'waiting': {'reason': 'CrashLoopBackOff', 'message': 'sentinel'}},
+                        'lastState': {'terminated': {'reason': 'Error', 'exitCode': 1, 'message': 'sentinel'}}}]}}]
+        records = deployment.safe_resource_status(objects)
+        self.assertNotIn('sentinel', json.dumps(records))
+        self.assertEqual(records[0]['containers'][0]['waitingReason'], 'CrashLoopBackOff')
+        self.assertEqual(records[0]['containers'][0]['lastExitCode'], 1)
+
 
 class HostGuardTests(unittest.TestCase):
     def test_existing_k3s_refused_before_provisioning(self):

@@ -26,11 +26,26 @@ KUSTOMIZATIONS = ('flux-system', 'infra-namespaces', 'cluster-secrets',
 
 
 def safe_resource_status(objects: list[dict]) -> list[dict]:
-    return [{'kind': obj.get('kind'), 'name': obj.get('metadata', {}).get('name'),
+    records = [{'kind': obj.get('kind'), 'name': obj.get('metadata', {}).get('name'),
              'namespace': obj.get('metadata', {}).get('namespace'),
              'conditions': [{key: condition.get(key) for key in ('type', 'status', 'reason')}
                             for condition in obj.get('status', {}).get('conditions', [])]}
             for obj in objects]
+    for obj, record in zip(objects, records):
+        if obj.get('kind') != 'Pod':
+            continue
+        status = obj.get('status', {})
+        record['containers'] = []
+        for container in status.get('initContainerStatuses', []) + status.get('containerStatuses', []):
+            state = container.get('state', {})
+            previous = container.get('lastState', {}).get('terminated', {})
+            record['containers'].append({
+                'name': container.get('name'), 'ready': container.get('ready'),
+                'restartCount': container.get('restartCount'),
+                'waitingReason': state.get('waiting', {}).get('reason'),
+                'terminatedReason': state.get('terminated', {}).get('reason'),
+                'lastTerminatedReason': previous.get('reason'), 'lastExitCode': previous.get('exitCode')})
+    return records
 
 
 class Deployment:
@@ -168,7 +183,7 @@ class Deployment:
 
     def diagnostics(self):
         records = []
-        for resource in ('nodes', 'deployments', 'gitrepositories', 'kustomizations', 'helmreleases', 'certificates'):
+        for resource in ('nodes', 'pods', 'deployments', 'gitrepositories', 'kustomizations', 'helmreleases', 'certificates'):
             try:
                 raw = self.kube(['get', resource, '-A', '-o', 'json', '--request-timeout=10s'])
                 records.extend(safe_resource_status(json.loads(raw)['items']))

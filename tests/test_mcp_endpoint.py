@@ -37,6 +37,13 @@ class EndpointTests(unittest.TestCase):
             source = os.environ.get('MCP_CHART_CACHE')
             if source:
                 (cache / (CHART['sha256'] + '.tgz')).write_bytes(Path(source).read_bytes())
+            else:
+                subprocess.run(['helm', 'pull', lock['url'], '--destination', str(cache)],
+                               capture_output=True, check=True, timeout=60)
+                archives = list(cache.glob('*.tgz'))
+                if len(archives) != 1:
+                    raise RuntimeError('Expected one pinned MCP chart archive')
+                archives[0].replace(cache / (CHART['sha256'] + '.tgz'))
             cls.objects = migration_check.render(ROOT, 'mcp-endpoint',
                 {'namespace': 'k3s-mcp', 'charts': {'k3s-mcp': lock}}, objects, cache)
         cls.pod = cls.object('Deployment', 'k3s-mcp')['spec']['template']['spec']
