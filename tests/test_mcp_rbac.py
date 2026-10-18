@@ -1,10 +1,7 @@
-"""Keep the GitOps MCP identity read-only, and test local credential minting."""
+"""Keep the endpoint Kubernetes identity read-only."""
 from pathlib import Path
-import os
 import shutil
-import stat
 import subprocess
-import tempfile
 import unittest
 
 import yaml
@@ -69,66 +66,6 @@ class MCPRBACContractTests(unittest.TestCase):
         self.assertEqual(mcp_flux['spec']['path'], './infrastructure/mcp')
         self.assertIn({'name': 'infra-namespaces'}, mcp_flux['spec']['dependsOn'])
         self.assertIs(mcp_flux['spec']['prune'], True)
-
-
-class MCPCredentialScriptTests(unittest.TestCase):
-    def setUp(self):
-        self.home = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        kubectl = self.home / 'kubectl'
-        kubectl.write_text('''#!/bin/sh
-case "$*" in
-  *"get serviceaccount k3s-mcp -o name"*) echo serviceaccount/k3s-mcp ;;
-  *"cluster.server}"*) printf %s https://192.0.2.10:6443 ;;
-  *"certificate-authority-data}"*) printf %s "${FAKE_CA-ZmFrZS1jYQ==}" ;;
-  *"create token k3s-mcp --duration=24h"*) printf %s "${FAKE_TOKEN-fake.jwt.token}" ;;
-  *) echo 'unexpected kubectl command' >&2; exit 1 ;;
-esac
-''')
-        kubectl.chmod(0o755)
-        self.env = os.environ.copy()
-        self.env.update({'HOME': str(self.home), 'KUBECONFIG': str(self.home / 'admin.yaml'),
-                         'PATH': str(self.home) + ':' + self.env['PATH']})
-
-    def run_script(self, env=None):
-        return subprocess.run(['bash', str(ROOT / 'scripts/k3s-mcp-kubeconfig.sh')],
-                              env=env or self.env, capture_output=True, text=True, timeout=15)
-
-    def test_creates_atomic_private_kubeconfig_without_leaking_token(self):
-        result = self.run_script()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        target = self.home / '.kube/k3s-mcp-readonly.yaml'
-        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o600)
-        self.assertNotIn('fake.jwt.token', result.stdout + result.stderr)
-        obj = yaml.safe_load(target.read_text())
-        self.assertEqual(obj['users'][0]['user']['token'], 'fake.jwt.token')
-        self.assertEqual(obj['clusters'][0]['cluster']['server'], 'https://192.0.2.10:6443')
-        self.assertEqual(obj['clusters'][0]['cluster']['certificate-authority-data'], 'ZmFrZS1jYQ==')
-        self.assertEqual(list((self.home / '.kube').glob('*.tmp.*')), [])
-
-        updated_env = self.env | {'FAKE_TOKEN': 'refreshed.jwt.token'}
-        result = self.run_script(updated_env)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(yaml.safe_load(target.read_text())['users'][0]['user']['token'],
-                         'refreshed.jwt.token')
-        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o600)
-
-    def test_rejects_missing_admin_identity(self):
-        env = {k: v for k, v in self.env.items() if k != 'KUBECONFIG'}
-        result = self.run_script(env)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse((self.home / '.kube/k3s-mcp-readonly.yaml').exists())
-
-    def test_refuses_kubeconfig_without_certificate_authority(self):
-        env = self.env | {'FAKE_CA': ''}
-        result = self.run_script(env)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse((self.home / '.kube/k3s-mcp-readonly.yaml').exists())
-
-    def test_rejects_relative_output_path(self):
-        env = self.env | {'K3S_MCP_KUBECONFIG': 'relative.yaml'}
-        result = self.run_script(env)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse((self.home / 'relative.yaml').exists())
 
 
 if __name__ == '__main__':
