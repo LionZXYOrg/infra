@@ -21,4 +21,6 @@ class DomainTests(unittest.TestCase):
             self.assertNotIn('.test.kulikov.uk', route.read_text())
             hostname = 'warden.lionzxy.ru' if route.parent.name == 'warden' else f'{route.parent.name}.kulikov.uk'
             definition = yaml.safe_load(route.read_text())
-            self.assertEqual(definition['spec']['routes'][0]['match'], f'Host(`{hostname}`)')
+            expected = (f'Host(`ha.kulikov.uk`) || Host(`{hostname}`)' if route.parent.name == 'homeassist'
+                        else f'Host(`{hostname}`)')
+            self.assertEqual(definition['spec']['routes'][0]['match'], expected)

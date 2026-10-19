@@ -1,4 +1,7 @@
 from pathlib import Path
+import re
+import shutil
+import subprocess
 import unittest
 import yaml
 ROOT = Path(__file__).resolve().parents[1]
@@ -9,6 +12,20 @@ def values():
     return load('helmrelease-homeassist.yaml')['spec']['values']
 
 class MigrationTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('kubectl'), 'kubectl needed for Kustomize rendering')
+    def test_public_hostnames_reach_the_existing_https_service(self):
+        rendered = subprocess.check_output(['kubectl', 'kustomize', str(APP)], timeout=30)
+        route = next(obj for obj in yaml.safe_load_all(rendered) if obj['kind'] == 'IngressRoute')
+        self.assertEqual(route['metadata']['namespace'], 'homeassist')
+        self.assertEqual(route['spec']['entryPoints'], ['websecure'])
+        self.assertEqual(route['spec']['tls'], {})
+        rules = route['spec']['routes']
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(set(re.findall(r'Host\(`([^`]+)`\)', rules[0]['match'])),
+                         {'ha.kulikov.uk', 'homeassist.kulikov.uk'})
+        self.assertIn(' || ', rules[0]['match'])
+        self.assertEqual(rules[0]['services'], [{'name': 'homeassist-homeassistant', 'port': 8123}])
+
     def test_matter_discovery_and_hardware_stay_on_the_selected_node(self):
         v = values()
         for name, controller in v['controllers'].items():
