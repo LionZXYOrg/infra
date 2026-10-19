@@ -1,4 +1,4 @@
-"""Production routes, the wildcard certificate, and DNS01 use one domain."""
+"""Production routes and certificate issuers cover the public hostnames."""
 from pathlib import Path
 import unittest
 
@@ -15,7 +15,10 @@ class DomainTests(unittest.TestCase):
         self.assertEqual(store['spec']['defaultCertificate']['secretName'], certificate['spec']['secretName'])
         issuers = yaml.safe_load_all((ROOT / 'infrastructure/issuers/clusterissuers.yaml').read_text())
         for issuer in issuers:
-            self.assertEqual(issuer['spec']['acme']['solvers'][0]['selector']['dnsZones'], ['kulikov.uk'])
+            self.assertEqual(issuer['spec']['acme']['solvers'][0]['selector']['dnsZones'],
+                             ['kulikov.uk', 'lionzxy.ru'])
         for route in (ROOT / 'apps').glob('*/ingressroute.yaml'):
             self.assertNotIn('.test.kulikov.uk', route.read_text())
-            self.assertIn('.kulikov.uk', route.read_text())
+            hostname = 'warden.lionzxy.ru' if route.parent.name == 'warden' else f'{route.parent.name}.kulikov.uk'
+            definition = yaml.safe_load(route.read_text())
+            self.assertEqual(definition['spec']['routes'][0]['match'], f'Host(`{hostname}`)')

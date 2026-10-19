@@ -6,7 +6,7 @@ spec:
   releaseName: immich-backend
   interval: 10m
   timeout: 10m
-  suspend: true
+  suspend: false
   chart:
     spec:
       chart: app-template
