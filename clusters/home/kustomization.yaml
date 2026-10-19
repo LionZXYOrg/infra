@@ -12,3 +12,4 @@ resources:
   - homeassist.yaml
   - acorn-care-bot.yaml
   - copyparty.yaml
+  - qbittorrent.yaml
