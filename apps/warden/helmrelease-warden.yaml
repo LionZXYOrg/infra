@@ -33,7 +33,7 @@ spec:
     resourceType: Deployment
     strategy:
       type: Recreate
-    domain: https://warden.kulikov.uk
+    domain: https://warden.lionzxy.ru
     signupsAllowed: false
     signupsVerify: 'false'
     invitationsAllowed: true

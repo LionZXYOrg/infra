@@ -7,8 +7,9 @@ spec:
   - websecure
   routes:
   - kind: Rule
-    match: Host(`warden.kulikov.uk`)
+    match: Host(`warden.lionzxy.ru`)
     services:
     - name: warden
       port: 80
-  tls: {}
+  tls:
+    secretName: warden-tls

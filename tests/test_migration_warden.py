@@ -10,6 +10,17 @@ def release(name):
     return load('helmrelease-' + name + '.yaml')
 
 class MigrationTests(unittest.TestCase):
+    def test_public_domain_and_dedicated_certificate_match(self):
+        hostname = 'warden.lionzxy.ru'
+        self.assertEqual(release('warden')['spec']['values']['domain'], f'https://{hostname}')
+        route = load('ingressroute.yaml')['spec']
+        self.assertEqual(route['routes'][0]['match'], f'Host(`{hostname}`)')
+        certificate = load('certificate.yaml')['spec']
+        self.assertEqual(certificate['dnsNames'], [hostname])
+        self.assertEqual(route['tls']['secretName'], certificate['secretName'])
+        self.assertEqual(certificate['issuerRef'], {'kind': 'ClusterIssuer', 'name': 'letsencrypt-production'})
+        self.assertIn('certificate.yaml', load('kustomization.yaml')['resources'])
+
     def test_chart_cannot_enable_signups_or_generate_credentials(self):
         v = release('warden')['spec']['values']
         self.assertFalse(v['signupsAllowed'])

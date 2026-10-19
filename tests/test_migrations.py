@@ -147,7 +147,7 @@ class MigrationPhaseTests(unittest.TestCase):
     def test_old_test_hostname_is_rejected(self):
         self.objects.append({'kind': 'IngressRoute', 'spec': {'entryPoints': ['websecure'], 'tls': {},
             'routes': [{'match': 'Host(`example.test.kulikov.uk`)'}]}})
-        with self.assertRaisesRegex(ValueError, 'kulikov.uk host'):
+        with self.assertRaisesRegex(ValueError, 'example.kulikov.uk host'):
             self.check()
 
 
