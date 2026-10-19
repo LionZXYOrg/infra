@@ -1,0 +1,298 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: homeassist
+spec:
+  releaseName: homeassist
+  interval: 10m
+  timeout: 10m
+  suspend: false
+  chart:
+    spec:
+      chart: app-template
+      version: 5.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: charts-app
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+    controllers:
+      homeassistant:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        forceRename: homeassist-homeassistant
+        containers:
+          main:
+            image:
+              repository: ghcr.io/home-assistant/home-assistant
+              tag: 2026.8.0
+              digest: sha256:a21689ef0510df9760ee11bab4d6b2fef3ed5c1a29ed9c3224271597a23729eb
+              pullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: 50m
+                memory: 2Gi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8123
+                    path: /
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8123
+                    path: /
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8123
+                    path: /
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            securityContext:
+              privileged: true
+            ports:
+            - name: http
+              containerPort: 8123
+            env:
+              TZ: Europe/London
+        pod:
+          nodeSelector:
+            home.kulikov.uk/automation: 'true'
+      matter-server:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        forceRename: homeassist-matter-server
+        containers:
+          main:
+            image:
+              repository: ghcr.io/matter-js/matterjs-server
+              tag: 1.3.3
+              digest: sha256:ac537ba44a2edaaf785b818f8b7ce75cdf736539401462046f0042670bee4063
+              pullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: 50m
+                memory: 512Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - /usr/local/bin/healthcheck.sh
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - /usr/local/bin/healthcheck.sh
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - /usr/local/bin/healthcheck.sh
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            securityContext:
+              runAsUser: 1000
+              runAsGroup: 1000
+              allowPrivilegeEscalation: false
+            ports:
+            - name: http
+              containerPort: 5580
+            env:
+              STORAGE_PATH: /data
+              PRIMARY_INTERFACE: ens18
+              LOG_LEVEL: info
+        pod:
+          nodeSelector:
+            home.kulikov.uk/automation: 'true'
+          hostNetwork: true
+          dnsPolicy: ClusterFirstWithHostNet
+      matter-hub:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        forceRename: homeassist-matter-hub
+        containers:
+          main:
+            image:
+              repository: ghcr.io/riddix/home-assistant-matter-hub
+              tag: 2.0.52
+              digest: sha256:80c3467fea213a31e813c36d4e92a13782881da478b310b4fee31aaa4be3b1d4
+              pullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: 50m
+                memory: 512Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8482
+                    path: /api/health/live
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8482
+                    path: /api/health/live
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8482
+                    path: /api/health/live
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - NET_RAW
+            ports:
+            - name: http
+              containerPort: 8482
+            env:
+              HAMH_HOME_ASSISTANT_URL: http://homeassist-homeassistant:8123/
+              HAMH_HOME_ASSISTANT_ACCESS_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: homeassist-config
+                    key: HAMH_HOME_ASSISTANT_ACCESS_TOKEN
+              HAMH_LOG_LEVEL: info
+              HAMH_HTTP_PORT: '8482'
+        pod:
+          nodeSelector:
+            home.kulikov.uk/automation: 'true'
+          hostNetwork: true
+          dnsPolicy: ClusterFirstWithHostNet
+    service:
+      homeassistant:
+        controller: homeassistant
+        forceRename: homeassist-homeassistant
+        type: ClusterIP
+        ports:
+          http:
+            port: 8123
+            targetPort: http
+      matter-server:
+        controller: matter-server
+        forceRename: homeassist-matter-server
+        type: ClusterIP
+        ports:
+          http:
+            port: 5580
+            targetPort: http
+      matter-hub:
+        controller: matter-hub
+        forceRename: homeassist-matter-hub
+        type: ClusterIP
+        ports:
+          http:
+            port: 8482
+            targetPort: http
+    persistence:
+      homeassistant:
+        type: persistentVolumeClaim
+        existingClaim: homeassist-config
+        advancedMounts:
+          homeassistant:
+            main:
+            - path: /config
+      matter-server:
+        type: persistentVolumeClaim
+        existingClaim: homeassist-matter
+        advancedMounts:
+          matter-server:
+            main:
+            - path: /data
+      matter-hub:
+        type: persistentVolumeClaim
+        existingClaim: homeassist-hub
+        advancedMounts:
+          matter-hub:
+            main:
+            - path: /data
+      dbus:
+        type: hostPath
+        hostPath: /run/dbus
+        hostPathType: Directory
+        advancedMounts:
+          homeassistant:
+            main:
+            - path: /run/dbus
+              readOnly: true
+          matter-server:
+            main:
+            - path: /run/dbus
+              readOnly: true
+      radio-0:
+        type: hostPath
+        hostPath: /dev/serial/by-id/usb-Nabu_Casa_ZBT-2_E072A1DAA2D4-if00
+        hostPathType: CharDevice
+        advancedMounts:
+          homeassistant:
+            main:
+            - path: /dev/ttyACM0
+      radio-1:
+        type: hostPath
+        hostPath: /dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_501f34cba6a3ef118fdc44bd61ce3355-if00-port0
+        hostPathType: CharDevice
+        advancedMounts:
+          homeassistant:
+            main:
+            - path: /dev/ttyUSB0
