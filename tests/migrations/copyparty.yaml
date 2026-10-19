@@ -10,8 +10,6 @@ mounts:
 - /w
 - /cfg
 source:
-  repository: https://github.com/LionZXY/rpi-infra
-  commit: ccfc5ecd5433fa0d7fe3844f167612b8ed6e2297
   path: /home/docker/app/copyparty
   observedAt: '2026-10-13'
   host: home.kulikov.uk
