@@ -6,7 +6,7 @@ spec:
   releaseName: homeassist
   interval: 10m
   timeout: 10m
-  suspend: true
+  suspend: false
   chart:
     spec:
       chart: app-template
@@ -144,7 +144,7 @@ spec:
               containerPort: 5580
             env:
               STORAGE_PATH: /data
-              PRIMARY_INTERFACE: eth0
+              PRIMARY_INTERFACE: ens18
               LOG_LEVEL: info
         pod:
           nodeSelector:
@@ -287,7 +287,7 @@ spec:
         advancedMounts:
           homeassistant:
             main:
-            - path: /dev/ttyUSB-ZBT2
+            - path: /dev/ttyACM0
       radio-1:
         type: hostPath
         hostPath: /dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_501f34cba6a3ef118fdc44bd61ce3355-if00-port0
@@ -295,4 +295,4 @@ spec:
         advancedMounts:
           homeassistant:
             main:
-            - path: /dev/ttyZigbeeDongle
+            - path: /dev/ttyUSB0
