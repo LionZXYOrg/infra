@@ -104,7 +104,8 @@ class MigrationPhaseTests(unittest.TestCase):
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         for directory in ['apps/example', 'clusters/home', 'infrastructure/namespaces']:
             (self.root / directory).mkdir(parents=True)
-        self.contract = {'source': {'commit': 'ccfc5ecd5433fa0d7fe3844f167612b8ed6e2297'},
+        self.contract = {'source': {'host': 'home.kulikov.uk', 'path': '/home/docker/app/example',
+                                    'observedAt': '2026-10-13'},
                          'charts': {'example': {'chart': 'example', 'version': '1', 'sha256': 'a' * 64}}}
         self.objects = [{'kind': 'HelmRelease', 'metadata': {'name': 'example'}, 'spec': {
             'suspend': True, 'chart': {'spec': {'chart': 'example', 'version': '1'}}}}]
@@ -119,6 +120,26 @@ class MigrationPhaseTests(unittest.TestCase):
         import yaml
         (self.root / 'clusters/home/example.yaml').write_text(yaml.safe_dump(self.flux))
         migration.check_preparation(self.root, 'example', self.contract, self.objects)
+
+    def test_inventory_cannot_depend_on_a_source_repository(self):
+        self.check()
+        for field, value in [('repository', 'https://example.invalid/source'), ('commit', 'a' * 40)]:
+            with self.subTest(field=field):
+                self.contract['source'][field] = value
+                with self.assertRaisesRegex(ValueError, 'live inventory fields'):
+                    self.check()
+                del self.contract['source'][field]
+
+    def test_live_inventory_still_requires_the_observed_host_path_and_date(self):
+        cases = [('host', 'other.example.invalid'), ('path', '/tmp/example'),
+                 ('path', 'relative/path'), ('observedAt', '2026-01-01')]
+        for field, value in cases:
+            with self.subTest(field=field, value=value):
+                original = self.contract['source'][field]
+                self.contract['source'][field] = value
+                with self.assertRaisesRegex(ValueError, 'live inventory changed'):
+                    self.check()
+                self.contract['source'][field] = original
 
     def test_preparation_cannot_enable_either_controller(self):
         self.check()

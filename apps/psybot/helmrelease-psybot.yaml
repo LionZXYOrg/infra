@@ -1,0 +1,97 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: psybot
+spec:
+  releaseName: psybot
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: app-template
+      version: 5.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: charts-app
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+    controllers:
+      main:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: ghcr.io/lionzxyorg/psybot
+              tag: snapshot-ccfc5ecd5433
+            env:
+              TELEGRAM_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: psybot-config
+                    key: TELEGRAM_TOKEN
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - python3
+                    - -c
+                    - import os; os.kill(1,0)
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - python3
+                    - -c
+                    - import os; os.kill(1,0)
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - python3
+                    - -c
+                    - import os; os.kill(1,0)
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 10001
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+        forceRename: psybot
