@@ -7,7 +7,6 @@ resources:
   - mcp-endpoint.yaml
   - secrets-source.yaml
   - infrastructure.yaml
-  - apps.yaml
   - immich.yaml
   - warden.yaml
   - homeassist.yaml
