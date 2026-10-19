@@ -21,3 +21,4 @@ secrets:
 mounts:
 - /data
 - /var/lib/postgresql/data
+phase: active
