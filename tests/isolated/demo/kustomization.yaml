@@ -1,12 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: demo
 resources:
-  - ../../../apps/demo
-patches:
-  - target:
-      kind: IngressRoute
-      name: demo
-    patch: |-
-      - op: replace
-        path: /spec/routes/0/match
-        value: Host(`demo.infra.test`)
+  - deployment.yaml
+  - service.yaml
+  - ingressroute.yaml
+configMapGenerator:
+  - name: demo-html
+    files:
+      - index.html

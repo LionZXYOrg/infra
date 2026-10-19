@@ -7,7 +7,7 @@ spec:
   - websecure
   routes:
   - kind: Rule
-    match: Host(`qbittorrent.kulikov.uk`)
+    match: Host(`torrent.kulikov.uk`)
     services:
     - name: qbittorrent
       port: 8080

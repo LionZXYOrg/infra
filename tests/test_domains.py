@@ -1,10 +1,13 @@
 """Production routes and certificate issuers cover the public hostnames."""
 from pathlib import Path
+import sys
 import unittest
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+import migration_check as migration
 
 
 class DomainTests(unittest.TestCase):
@@ -19,6 +22,6 @@ class DomainTests(unittest.TestCase):
                              ['kulikov.uk', 'lionzxy.ru'])
         for route in (ROOT / 'apps').glob('*/ingressroute.yaml'):
             self.assertNotIn('.test.kulikov.uk', route.read_text())
-            hostname = 'warden.lionzxy.ru' if route.parent.name == 'warden' else f'{route.parent.name}.kulikov.uk'
+            hostname = migration.PUBLIC_HOSTNAMES.get(route.parent.name, f'{route.parent.name}.kulikov.uk')
             definition = yaml.safe_load(route.read_text())
             self.assertEqual(definition['spec']['routes'][0]['match'], f'Host(`{hostname}`)')
