@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: home-monitoring
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+  - name: home.gitops-and-certificates
+    rules:
+    - alert: FluxReconciliationFailed
+      expr: max by (customresource_kind, exported_namespace, name) (gotk_resource_info{ready!="True",suspended!="true"})
+        == 1
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: Flux reconciliation is not ready
+        description: '{{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name
+          }} has not been ready for 15 minutes.'
+    - alert: FluxStateMetricsMissing
+      expr: absent(gotk_resource_info{customresource_kind="Kustomization",exported_namespace="flux-system",name="flux-system"})
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: Flux resource-state metrics are missing
+        description: Check kube-state-metrics custom-resource configuration, RBAC, and its scrape target.
+    - alert: HomeCertificateNotReady
+      expr: max by (namespace, name) (certmanager_certificate_ready_status{condition="True"}) == 0
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        summary: A TLS certificate is not ready
+        description: Certificate {{ $labels.namespace }}/{{ $labels.name }} has not been ready for 15
+          minutes.
+    - alert: HomeCertificateExpiringSoon
+      expr: (max by (namespace, name) (certmanager_certificate_expiration_timestamp_seconds) - time())
+        < 604800
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: A TLS certificate expires in less than seven days
+        description: Check renewal for certificate {{ $labels.namespace }}/{{ $labels.name }}.

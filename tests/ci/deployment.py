@@ -15,14 +15,16 @@ if __package__:
     from .fixtures import FixtureSet, command
     from .git_server import GitServer
     from .mcp import MCPFailure, verify_endpoint
+    from .monitoring import verify_monitoring, verify_rule_tests
 else:
     from fixtures import FixtureSet, command
     from git_server import GitServer
     from mcp import MCPFailure, verify_endpoint
+    from monitoring import verify_monitoring, verify_rule_tests
 
 
 KUSTOMIZATIONS = ('flux-system', 'infra-namespaces', 'cluster-secrets',
-                  'infra-controllers', 'infra-tls', 'apps', 'cluster-mcp-rbac', 'cluster-mcp-endpoint')
+                  'infra-controllers', 'infra-tls', 'apps', 'cluster-mcp-rbac', 'cluster-mcp-endpoint', 'infra-monitoring', 'monitoring-config')
 
 
 def safe_resource_status(objects: list[dict]) -> list[dict]:
@@ -117,13 +119,15 @@ class Deployment:
         for name in ('flux-system', 'infra-secrets'):
             self.wait('gitrepository', name, 'flux-system')
         for name in KUSTOMIZATIONS:
-            self.wait('kustomization', name, 'flux-system', '900s' if name == 'infra-controllers' else '300s')
+            self.wait('kustomization', name, 'flux-system', '900s' if name in {'infra-controllers', 'infra-monitoring'} else '300s')
         for namespace, name in (('traefik', 'traefik'), ('cert-manager', 'cert-manager')):
             self.wait('helmrelease', name, namespace)
         self.wait('certificate', 'isolated-tls', 'traefik')
         self.kube(['-n', 'demo', 'rollout', 'status', 'deployment/demo', '--timeout=180s'])
         self.wait('helmrelease', 'k3s-mcp', 'k3s-mcp')
         self.wait('certificate', 'mcp-lan', 'k3s-mcp')
+        verify_monitoring(self)
+        verify_rule_tests(self)
 
     def verify_migrations_suspended(self, fixture):
         for contract in sorted((fixture.infra_path / 'tests/migrations').glob('*.yaml')):
@@ -161,6 +165,8 @@ class Deployment:
         self.passed_check('sops-initial-decryption')
         self.verify_https()
         self.passed_check('trusted-https')
+        self.passed_check('monitoring-targets-dashboards-persistence-rules')
+        self.passed_check('monitoring-alert-rule-behaviour')
         verify_endpoint(self, fixture)
         self.passed_check('mcp-trusted-ip-tls-authentication-and-read-only-access')
         self.verify_no_production_resources()

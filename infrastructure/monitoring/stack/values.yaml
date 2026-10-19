@@ -1,0 +1,377 @@
+# kube-prometheus-stack 92.3.0: single-node K3s baseline, not HA.
+# Component endpoints embedded in K3s are not scraped individually.
+# local-path PVC requests are not disk quotas; monitor host disk space.
+# Empty Grafana adminPassword asks the chart to generate a random Kubernetes Secret.
+# The null Alertmanager receiver intentionally sends nothing until private values configure it.
+# Private overrides are read after this file; never put credentials here.
+fullnameOverride: monitoring
+defaultRules:
+  create: true
+  rules:
+    etcd: false
+    kubeControllerManager: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeProxy: false
+    windows: false
+    kubeApiserverBurnrate: false
+    kubeApiserverSlos: false
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeApiServer:
+  enabled: true
+kubelet:
+  enabled: true
+  serviceMonitor:
+    insecureSkipVerify: false
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+prometheus:
+  enabled: true
+  ingress:
+    enabled: false
+  service:
+    type: ClusterIP
+  prometheusSpec:
+    replicas: 1
+    shards: 1
+    scrapeInterval: 60s
+    evaluationInterval: 60s
+    retention: 7d
+    retentionSize: 8GB
+    walCompression: true
+    resources:
+      requests:
+        cpu: 150m
+        memory: 512Mi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 10Gi
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+    enableAdminAPI: false
+    externalLabels:
+      cluster: home
+    serviceMonitorSelector:
+      matchLabels:
+        release: monitoring
+    podMonitorSelector:
+      matchLabels:
+        release: monitoring
+    ruleSelector:
+      matchLabels:
+        release: monitoring
+    probeSelector:
+      matchLabels:
+        release: monitoring
+    scrapeConfigSelector:
+      matchLabels:
+        release: monitoring
+    serviceMonitorNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+    podMonitorNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+    ruleNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+    probeNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+    scrapeConfigNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+alertmanager:
+  enabled: true
+  ingress:
+    enabled: false
+  service:
+    type: ClusterIP
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: 'null'
+      group_by:
+      - namespace
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      routes:
+      - receiver: 'null'
+        matchers:
+        - alertname = "Watchdog"
+    receivers:
+    - name: 'null'
+  alertmanagerSpec:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+grafana:
+  enabled: true
+  fullnameOverride: grafana
+  adminUser: admin
+  adminPassword: ''
+  defaultDashboardsTimezone: Europe/London
+  defaultDashboardsEditable: false
+  ingress:
+    enabled: false
+  service:
+    type: ClusterIP
+  deploymentStrategy:
+    type: Recreate
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: local-path
+    accessModes:
+    - ReadWriteOnce
+    size: 1Gi
+    annotations:
+      helm.sh/resource-policy: keep
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  rbac:
+    namespaced: true
+  sidecar:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    dashboards:
+      enabled: true
+      searchNamespace: monitoring
+      resource: configmap
+    datasources:
+      enabled: true
+      searchNamespace: monitoring
+      resource: configmap
+  grafana.ini:
+    auth.anonymous:
+      enabled: false
+    users:
+      allow_sign_up: false
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+kube-state-metrics:
+  fullnameOverride: kube-state-metrics
+  resources:
+    requests:
+      cpu: 30m
+      memory: 64Mi
+  rbac:
+    extraRules:
+    - apiGroups:
+      - kustomize.toolkit.fluxcd.io
+      resources:
+      - kustomizations
+      verbs:
+      - list
+      - watch
+    - apiGroups:
+      - helm.toolkit.fluxcd.io
+      resources:
+      - helmreleases
+      verbs:
+      - list
+      - watch
+    - apiGroups:
+      - source.toolkit.fluxcd.io
+      resources:
+      - gitrepositories
+      - helmrepositories
+      - helmcharts
+      verbs:
+      - list
+      - watch
+    - apiGroups:
+      - apiextensions.k8s.io
+      resources:
+      - customresourcedefinitions
+      verbs:
+      - list
+      - watch
+  customResourceState:
+    enabled: true
+    config:
+      spec:
+        resources:
+        - groupVersionKind:
+            group: kustomize.toolkit.fluxcd.io
+            version: v1
+            kind: Kustomization
+          metricNamePrefix: gotk
+          metrics:
+          - name: resource_info
+            help: Current state of a Flux Kustomization.
+            each:
+              type: Info
+              info:
+                labelsFromPath:
+                  name:
+                  - metadata
+                  - name
+            labelsFromPath:
+              exported_namespace:
+              - metadata
+              - namespace
+              ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+              suspended:
+              - spec
+              - suspend
+        - groupVersionKind:
+            group: helm.toolkit.fluxcd.io
+            version: v2
+            kind: HelmRelease
+          metricNamePrefix: gotk
+          metrics:
+          - name: resource_info
+            help: Current state of a Flux HelmRelease.
+            each:
+              type: Info
+              info:
+                labelsFromPath:
+                  name:
+                  - metadata
+                  - name
+            labelsFromPath:
+              exported_namespace:
+              - metadata
+              - namespace
+              ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+              suspended:
+              - spec
+              - suspend
+        - groupVersionKind:
+            group: source.toolkit.fluxcd.io
+            version: v1
+            kind: GitRepository
+          metricNamePrefix: gotk
+          metrics:
+          - name: resource_info
+            help: Current state of a Flux GitRepository.
+            each:
+              type: Info
+              info:
+                labelsFromPath:
+                  name:
+                  - metadata
+                  - name
+            labelsFromPath:
+              exported_namespace:
+              - metadata
+              - namespace
+              ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+              suspended:
+              - spec
+              - suspend
+        - groupVersionKind:
+            group: source.toolkit.fluxcd.io
+            version: v1
+            kind: HelmRepository
+          metricNamePrefix: gotk
+          metrics:
+          - name: resource_info
+            help: Current state of a Flux HelmRepository.
+            each:
+              type: Info
+              info:
+                labelsFromPath:
+                  name:
+                  - metadata
+                  - name
+            labelsFromPath:
+              exported_namespace:
+              - metadata
+              - namespace
+              ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+              suspended:
+              - spec
+              - suspend
+        - groupVersionKind:
+            group: source.toolkit.fluxcd.io
+            version: v1
+            kind: HelmChart
+          metricNamePrefix: gotk
+          metrics:
+          - name: resource_info
+            help: Current state of a Flux HelmChart.
+            each:
+              type: Info
+              info:
+                labelsFromPath:
+                  name:
+                  - metadata
+                  - name
+            labelsFromPath:
+              exported_namespace:
+              - metadata
+              - namespace
+              ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+              suspended:
+              - spec
+              - suspend
+prometheus-node-exporter:
+  fullnameOverride: node-exporter
+  hostNetwork: false
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
