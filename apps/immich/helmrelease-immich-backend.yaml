@@ -1,0 +1,177 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich-backend
+spec:
+  releaseName: immich-backend
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: app-template
+      version: 5.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: charts-app
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+    controllers:
+      database:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: ghcr.io/immich-app/postgres
+              tag: 14-vectorchord0.4.3-pgvectors0.2.0
+              digest: sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+              pullPolicy: IfNotPresent
+            ports:
+            - name: http
+              containerPort: 5432
+            env:
+              POSTGRES_USER: postgres
+              POSTGRES_DB: immich
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: immich-config
+                    key: DB_PASSWORD
+              POSTGRES_INITDB_ARGS: --data-checksums
+              PGDATA: /var/lib/postgresql/data
+            args:
+            - -c
+            - config_file=/etc/postgresql/postgresql.conf
+            resources:
+              requests:
+                cpu: 50m
+                memory: 1Gi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - /usr/local/bin/healthcheck.sh
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - /usr/local/bin/healthcheck.sh
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - /usr/local/bin/healthcheck.sh
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+        forceRename: immich-postgres
+      redis:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: valkey/valkey
+              tag: '9'
+              digest: sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d
+              pullPolicy: IfNotPresent
+            ports:
+            - name: http
+              containerPort: 6379
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - test "$(redis-cli ping)" = PONG
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - test "$(redis-cli ping)" = PONG
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - sh
+                    - -c
+                    - test "$(redis-cli ping)" = PONG
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+        forceRename: immich-redis
+    service:
+      database:
+        controller: database
+        type: ClusterIP
+        ports:
+          http:
+            port: 5432
+            targetPort: http
+        forceRename: immich-postgres
+      redis:
+        controller: redis
+        type: ClusterIP
+        ports:
+          http:
+            port: 6379
+            targetPort: http
+        forceRename: immich-redis
+    persistence:
+      database:
+        type: persistentVolumeClaim
+        advancedMounts:
+          database:
+            main:
+            - path: /var/lib/postgresql/data
+        existingClaim: immich-postgres
