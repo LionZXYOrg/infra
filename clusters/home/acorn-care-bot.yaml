@@ -1,17 +1,20 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: apps
+  name: acorn-care-bot
   namespace: flux-system
 spec:
+  # Keep disabled until the new token, private image access, and state cutover are ready.
+  suspend: true
   dependsOn:
-  - name: infra-tls
-  - name: cluster-secrets
+    - name: infra-namespaces
+    - name: cluster-secrets
   interval: 1m
   retryInterval: 30s
   timeout: 5m
-  path: ./apps/demo
+  path: ./apps/acorn-care-bot
   prune: true
+  deletionPolicy: Orphan
   wait: true
   sourceRef:
     kind: GitRepository

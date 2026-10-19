@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: portainer
+spec:
+  secretName: portainer-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-production
+  dnsNames:
+  - portainer.lionzxy.ru
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
