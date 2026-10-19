@@ -9,6 +9,16 @@ def values():
     return load('helmrelease-immich.yaml')['spec']['values']
 
 class MigrationTests(unittest.TestCase):
+    def test_retained_storage_preserves_restored_media_and_database(self):
+        claims = {d['metadata']['name']: d for d in yaml.safe_load_all((APP / 'storage.yaml').read_text())}
+        self.assertEqual(set(claims), {'immich-library', 'immich-postgres'})
+        for name, size in [('immich-library', '2Ti'), ('immich-postgres', '20Gi')]:
+            claim = claims[name]
+            self.assertEqual(claim['spec']['resources']['requests']['storage'], size)
+            self.assertEqual(claim['spec']['storageClassName'], 'local-path')
+            self.assertEqual(claim['spec']['accessModes'], ['ReadWriteOnce'])
+            self.assertEqual(claim['metadata']['annotations']['kustomize.toolkit.fluxcd.io/prune'], 'disabled')
+
     def test_restore_keeps_live_database_extensions_and_application_versions(self):
         v = load('helmrelease-immich-backend.yaml')['spec']['values']
         database = v['controllers']['database']['containers']['main']
@@ -23,9 +33,6 @@ class MigrationTests(unittest.TestCase):
 
     @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
     def test_media_capacity_and_logical_restore_prevent_old_snapshot_restore(self):
-        claims = {d['metadata']['name']: d['spec']['resources']['requests']['storage']
-                  for d in yaml.safe_load_all((APP / 'storage.yaml').read_text())}
-        self.assertEqual(claims['immich-library'], '2Ti')
         instructions = (APP / 'MIGRATION.md').read_text()
         self.assertIn('tar -C /home/lionzxy/tmp-moving/immich -cpf - .', instructions)
         self.assertIn('ssh root@192.168.1.109', instructions)
