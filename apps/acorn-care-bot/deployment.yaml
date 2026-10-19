@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acorn-care-bot
+spec:
+  # Activation is a separate change after the token and state migration are ready.
+  replicas: 0
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: acorn-care-bot
+  template:
+    metadata:
+      labels:
+        app: acorn-care-bot
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 75
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: ghcr-auth
+      containers:
+        - name: bot
+          image: ghcr.io/lionzxyorg/acorn-care-bot:sha-899c109293fa13796b91c03fa0a6c96d1cda267d
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TELEGRAM_BOT_TOKEN_FILE
+              value: /var/run/acorn/token
+            - name: ACORN_CONFIG_PATH
+              value: /var/run/acorn/config.json
+            - name: ACORN_STATE_PATH
+              value: /data/state.json
+            - name: TELEGRAM_CHAT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: acorn-care-bot
+                  key: chat-id
+            - name: TELEGRAM_TOPIC_ID
+              valueFrom:
+                secretKeyRef:
+                  name: acorn-care-bot
+                  key: topic-id
+            - name: TELEGRAM_ALLOWED_USER_IDS
+              valueFrom:
+                secretKeyRef:
+                  name: acorn-care-bot
+                  key: allowed-user-ids
+          ports:
+            - name: health
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: health
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: health
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          volumeMounts:
+            - name: state
+              mountPath: /data
+            - name: configuration
+              mountPath: /var/run/acorn
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: acorn-care-bot-state
+        - name: configuration
+          secret:
+            secretName: acorn-care-bot
+            defaultMode: 0440
+            items:
+              - key: bot-token
+                path: token
+              - key: config.json
+                path: config.json
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi

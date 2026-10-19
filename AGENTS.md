@@ -46,7 +46,7 @@ tests. Test coverage is a review requirement, not a test-file-change CI gate.
 
 When adding an application:
 
-1. Create its resources under `apps/`, following `apps/demo` for health probes,
+1. Create its resources under `apps/`, with health probes,
    security settings, Service ports, and TLS routing.
 2. Add a namespace under `infrastructure/namespaces` and update that directory's
    `kustomization.yaml`. `secretctl.py index` updates both namespace and secret

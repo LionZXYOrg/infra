@@ -1,7 +1,9 @@
 # Isolated deployment validation
 
-GitHub Actions deploys the real namespaces, Traefik and cert-manager Helm releases,
-and demo application on a fresh Ubuntu 24.04 runner. Two local read-only Git
+GitHub Actions deploys the production namespaces, Traefik, cert-manager, and a test demo app on a fresh Ubuntu 24.04 runner.
+The demo app and its namespace exist only under `tests/isolated/`.
+Production does not deploy the demo app.
+Two local read-only Git
 repositories require independent disposable credentials. A fresh age identity
 encrypts a harmless probe Secret. TLS uses `demo.infra.test` and the self-signed
 test issuer; production ACME, Cloudflare credentials, and recovery keys are absent.
@@ -49,6 +51,7 @@ outcomes. On failure it adds only resource names and condition type/status/reaso
 raw logs, Secret contents, kubeconfigs, and environment dumps are excluded.
 
 Build the fixtures with `kubectl kustomize tests/isolated`,
+`kubectl kustomize tests/isolated/namespaces`,
 `kubectl kustomize tests/isolated/tls`, and
 `kubectl kustomize tests/isolated/demo`. Production DNS/ACME and the workstation
 SSH wrapper are outside this test's scope.
