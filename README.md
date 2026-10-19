@@ -59,16 +59,15 @@ flux get kustomizations -A
 kubectl get nodes
 ```
 
-Open `https://demo.kulikov.uk`.
 The kubeconfig file gives you cluster access. To fetch only that file, add `--fetch-kubeconfig` to the bootstrap command.
 Do not replace the recovery key during a restore. Back up its password outside Git.
 Git restores configuration, not databases or stored files. Back up that data separately.
 
 ## Add a service
 
-Use `apps/demo/` as a template for the image, ports, probes, storage, and HTTPS
-route. Add the service's namespace under `infrastructure/namespaces/` and a Flux
-Kustomization under `clusters/home/`; include both in their resource lists.
+Create the service under `apps/` with its image, ports, health probes, storage, and HTTPS route.
+Add its namespace under `infrastructure/namespaces/` and a Flux Kustomization under `clusters/home/`.
+Include both files in their resource lists.
 Use `myapp.kulikov.uk` for the route and `tls: {}` for the shared certificate.
 
 If the service needs a secret, update the private module first:
@@ -201,3 +200,73 @@ bash scripts/check.sh
 These checks work without private repository access. Every PR also runs a fresh
 deployment with disposable secrets and local TLS in GitHub Actions. See the
 [isolated deployment procedure](tests/isolated/README.md) to run it in a VM.
+
+## Acorn care bot
+
+The [separate bot repository](https://github.com/LionZXYOrg/acorn-care-bot) contains the application and its image build.
+The bot sends shared care reminders to one Telegram topic.
+It records each caregiver confirmation before it answers a button press.
+The planned meal times are `07:00`, `14:00`, and `19:00` in `Europe/London`.
+Wet food uses can fractions. Dry food uses grams.
+
+This change does not start the bot. The Flux object is suspended, and the Deployment has zero replicas.
+The existing reminders remain responsible for care until a separate cutover.
+Do not start both services. Two reminder services can ask caregivers to issue the same portion twice.
+No token, Telegram identifiers, caregiver identifiers, or private configuration belongs in this public repository.
+
+Before activation, prepare the following resources in the private secrets module:
+
+1. Create a protected copy of `config.example.json` from the bot repository outside this public checkout.
+2. Set its caregiver mentions and make sure that its portions match the approved plan.
+3. Create the application Secret with protected prompts and that file:
+
+   ```bash
+   python3 scripts/secretctl.py add acorn-care-bot acorn-care-bot \
+     --prompt bot-token --prompt chat-id --prompt topic-id \
+     --prompt allowed-user-ids \
+     --file config.json=/absolute/protected/path/acorn-config.json
+   ```
+
+   If the Secret already contains `bot-token`, preserve it and add the remaining values:
+
+   ```bash
+   python3 scripts/secretctl.py set acorn-care-bot acorn-care-bot \
+     --prompt chat-id --prompt topic-id --prompt allowed-user-ids \
+     --file config.json=/absolute/protected/path/acorn-config.json
+   ```
+
+4. Enter a comma-separated list of numeric caregiver IDs for `allowed-user-ids`.
+5. Give the new bot access to the target group and topic.
+6. For the private image, create a registry Secret from a protected Docker authentication file:
+
+   ```bash
+   python3 scripts/secretctl.py add acorn-care-bot ghcr-auth \
+     --type kubernetes.io/dockerconfigjson \
+     --file .dockerconfigjson=/absolute/protected/path/ghcr-auth.json
+   ```
+
+7. Commit and push the private changes before updating the public submodule pointer.
+8. Make sure that the pinned image build succeeds before activation.
+
+Use a new Telegram bot token. Do not reuse the assistant token or change its Telegram listener.
+Keep the public Deployment reference pinned to the tested application commit.
+The private image needs registry access with the `read:packages` permission.
+If the image becomes public, remove `imagePullSecrets` in a reviewed change.
+The bot needs outbound HTTPS, not a public HTTP route.
+Its health endpoints remain inside the cluster.
+
+Before starting the new bot, stop the old care scheduler and export its shared record through a protected channel.
+Follow the bot repository's migration procedure to preserve portions, task states, caregiver provenance, and health holds.
+Do not commit that record or copy its old bot message identifiers into new active panels.
+The new service stores its record at `/data/state.json` on the `acorn-care-bot-state` volume.
+The volume survives Flux pruning. It still needs a separate backup.
+
+After the state and secrets are ready, change the Deployment to one replica and remove the Flux suspension in one reviewed change.
+Use `Recreate` so that only one process writes the shared record.
+Do not scale the bot above one replica.
+A local-path volume stays on its original node. Follow the cluster backup procedure before moving it.
+
+Public tests render the application and exercise its security, Secret references, storage, and two activation guards.
+The disposable deployment test includes the suspended Flux object and rejects any bot workload that starts there.
+It does not contact Telegram, pull the private image, or use real caregiver data.
+An end-to-end test with the new bot remains necessary after the owner supplies its token.
