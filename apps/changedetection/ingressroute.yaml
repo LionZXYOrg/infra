@@ -7,7 +7,7 @@ spec:
   - websecure
   routes:
   - kind: Rule
-    match: Host(`changedetection.kulikov.uk`)
+    match: Host(`cd.kulikov.uk`)
     services:
     - name: changedetection
       port: 5000
