@@ -4,6 +4,7 @@ resources:
 - acorn-care-bot.yaml
 - birthday-reminder.yaml
 - cert-manager.yaml
+- changedetection.yaml
 - copyparty.yaml
 - homeassist.yaml
 - immich.yaml
