@@ -87,7 +87,14 @@ absence of production resources. Do not weaken assertions or use insecure TLS to
 make a test pass. Failure artifacts may contain only allowlisted readiness data
 and assertion results, never raw logs, Secret YAML, or environment dumps.
 
-Keep GitHub Actions fork-compatible: `pull_request`, read-only permissions,
+Keep public validation and deployment fork-compatible: `pull_request`, read-only permissions,
 SHA-pinned Actions, no persisted checkout credentials, no private submodules, and
 no repository secrets. Keep the stable `Validate` and `Deployment` checks and
 verify both on the latest PR revision before reporting success.
+
+Run the separate `Secrets main` audit only from trusted `master` code.
+Treat PR trees and `.gitmodules` as untrusted data. Never execute PR code in this audit.
+Keep its read-only deploy key in the `secrets-main` environment.
+Restrict that environment to the `master` branch. Never move the key to a repository secret.
+Fetch only private commit history. Never download private trees or Secret files for this audit.
+Keep `Secrets main` required on `master`. Never publish success for a commit outside private `main`.
