@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: restore-db
+  namespace: immich
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  containers:
+  - name: postgres
+    image: ghcr.io/immich-app/postgres@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    env:
+    - name: POSTGRES_USER
+      value: postgres
+    - name: POSTGRES_DB
+      value: immich
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: immich-config
+          key: DB_PASSWORD
+    - name: POSTGRES_INITDB_ARGS
+      value: --data-checksums
+    resources:
+      requests:
+        cpu: 50m
+        memory: 1Gi
+    readinessProbe:
+      exec:
+        command:
+        - pg_isready
+        - -U
+        - postgres
+        - -d
+        - immich
+      periodSeconds: 5
+    volumeMounts:
+    - name: database
+      mountPath: /var/lib/postgresql/data
+  volumes:
+  - name: database
+    persistentVolumeClaim:
+      claimName: immich-postgres

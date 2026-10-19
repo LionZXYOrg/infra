@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
 - cert-manager.yaml
 - demo.yaml
+- immich.yaml
 - k3s-mcp.yaml
 - traefik.yaml
 - warden.yaml
