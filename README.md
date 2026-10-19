@@ -96,9 +96,23 @@ Restart affected Pods after a Secret change if they read it through environment 
 It contains encrypted Secret manifests and the recovery bundle.
 
 For an existing checkout, run `git submodule update --init secrets`. After pulling a
-new module pointer, run `git submodule update secrets`. Secret changes require a
-commit and push inside `secrets/`, followed by a commit of the module pointer here.
+new module pointer, run `git submodule update secrets`.
+Merge the private Secret PR into `main` before merging its public PR.
+Update the public pointer to a commit that belongs to private `main`.
 Keep real secret files and recovery material in that private repository.
+
+The required `Secrets main` status blocks pointers outside private `main`.
+It also rejects a changed submodule repository, path, or branch.
+The audit reads public PR metadata and private commit history. It never runs PR code or reads Secret files.
+Its read-only deploy key stays in the `secrets-main` environment, which allows only `master`.
+Public validation and deployment tests use no private credentials.
+
+After a private merge, the scheduled audit refreshes open PR statuses every five minutes.
+GitHub can delay scheduled jobs. To request an audit immediately, run this command from the public repository:
+
+```bash
+gh workflow run secrets-main.yaml --repo LionZXYOrg/infra --ref master
+```
 
 ## MCP access over the LAN
 

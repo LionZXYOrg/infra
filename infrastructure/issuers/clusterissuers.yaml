@@ -12,6 +12,7 @@ spec:
       - selector:
           dnsZones:
             - kulikov.uk
+            - lionzxy.ru
         dns01:
           cloudflare:
             apiTokenSecretRef:
@@ -32,6 +33,7 @@ spec:
       - selector:
           dnsZones:
             - kulikov.uk
+            - lionzxy.ru
         dns01:
           cloudflare:
             apiTokenSecretRef:
