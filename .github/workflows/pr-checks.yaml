@@ -42,6 +42,8 @@ jobs:
         run: python scripts/migration_check.py --render
       - name: Build snapshot-local application images without production credentials
         run: python scripts/migration_check.py --build-images
+      - name: Smoke-test standalone LibreSpeed with no outbound network
+        run: python tests/migrations/speedtest_smoke.py
       - name: Scan public history for credentials
         run: gitleaks git --redact=100 --log-opts=--all .
 

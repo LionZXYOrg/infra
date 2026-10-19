@@ -7,5 +7,6 @@ resources:
 - homeassist.yaml
 - immich.yaml
 - k3s-mcp.yaml
+- speedtest.yaml
 - traefik.yaml
 - warden.yaml

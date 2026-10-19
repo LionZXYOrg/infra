@@ -1,0 +1,99 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: speedtest
+spec:
+  releaseName: speedtest
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: app-template
+      version: 5.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: charts-app
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+    controllers:
+      main:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: ghcr.io/librespeed/speedtest
+              tag: latest
+              digest: sha256:d22e5b6ce24f1a4df21496635e9e22f4b474fa67760a17429ca667ec1ee77650
+              pullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8080
+                    path: /
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8080
+                    path: /
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    port: 8080
+                    path: /
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            env:
+              MODE: standalone
+            ports:
+            - name: http
+              containerPort: 8080
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - NET_RAW
+        forceRename: speedtest
+    service:
+      main:
+        controller: main
+        type: ClusterIP
+        ports:
+          http:
+            port: 8080
+            targetPort: http
+        forceRename: speedtest
