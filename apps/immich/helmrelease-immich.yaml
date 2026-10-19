@@ -1,0 +1,163 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich
+spec:
+  releaseName: immich
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: immich
+      version: 0.13.4
+      sourceRef:
+        kind: HelmRepository
+        name: charts-immich
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+    controllers:
+      main:
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            env:
+              DB_HOSTNAME: immich-postgres
+              DB_USERNAME: postgres
+              DB_DATABASE_NAME: immich
+              DB_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: immich-config
+                    key: DB_PASSWORD
+              REDIS_HOSTNAME: immich-redis
+              IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
+    immich:
+      persistence:
+        library:
+          existingClaim: immich-library
+    valkey:
+      enabled: false
+    server:
+      controllers:
+        main:
+          replicas: 1
+          strategy: Recreate
+          containers:
+            main:
+              image:
+                repository: ghcr.io/immich-app/immich-server
+                tag: v3.3.1
+                digest: sha256:db996e352359771c6a3db121a0ed8761516b22f727fc092a0f46dcfef82c1bc1
+                pullPolicy: IfNotPresent
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 2Gi
+              probes:
+                startup:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 2283
+                      path: /api/server/ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 30
+                readiness:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 2283
+                      path: /api/server/ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 6
+                liveness:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 2283
+                      path: /api/server/ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 6
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - NET_RAW
+              ports:
+              - name: http
+                containerPort: 2283
+    machine-learning:
+      controllers:
+        main:
+          replicas: 1
+          strategy: Recreate
+          containers:
+            main:
+              image:
+                repository: ghcr.io/immich-app/immich-machine-learning
+                tag: v3.3.1
+                digest: sha256:513c831cfb010ad319341a0c86b42c575a0d5b688d3e8cae346ee624074a58ed
+                pullPolicy: IfNotPresent
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 2Gi
+              probes:
+                startup:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 3003
+                      path: /ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 30
+                readiness:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 3003
+                      path: /ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 6
+                liveness:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      port: 3003
+                      path: /ping
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 6
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - NET_RAW
+              ports:
+              - name: http
+                containerPort: 3003
+  dependsOn:
+  - name: immich-backend
