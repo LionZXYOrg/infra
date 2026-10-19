@@ -43,8 +43,12 @@ def check_preparation(root, name, contract, objects):
     phase = contract.get('phase', 'prepared')
     require(phase in {'prepared', 'active'}, f'{name}: invalid migration phase')
     suspended = phase == 'prepared'
-    require(contract['source']['commit'] == 'ccfc5ecd5433fa0d7fe3844f167612b8ed6e2297',
-            f'{name}: snapshot provenance changed; review inventory')
+    source = contract['source']
+    require(set(source) == {'host', 'path', 'observedAt'},
+            f'{name}: use only live inventory fields')
+    require(source['host'] == 'home.kulikov.uk' and source['observedAt'] == '2026-10-13'
+            and isinstance(source['path'], str) and source['path'].startswith('/home/docker/app/'),
+            f'{name}: live inventory changed; review it')
     flux = load(root / 'clusters/home' / f'{name}.yaml')
     require(flux['spec'].get('suspend') is suspended, f'{name}: suspension does not match migration phase')
     require(flux['spec']['path'] == f'./apps/{name}', f'{name}: wrong Flux path')
