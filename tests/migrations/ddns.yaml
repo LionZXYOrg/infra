@@ -1,0 +1,14 @@
+source:
+  path: /home/docker/app/ddns
+  observedAt: '2026-10-13'
+  host: home.kulikov.uk
+charts:
+  ddns:
+    chart: app-template
+    version: 5.3.0
+    url: https://bjw-s-labs.github.io/helm-charts/other/app-template-5.3.0.tgz
+    sha256: 60a593576f2a4c6a93ef384d9206a269a06d6124e50c969a382b58fd473628a9
+workloads: 1
+secrets:
+- ddns-config
+mounts: []

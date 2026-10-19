@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
 - birthday-reminder.yaml
 - cert-manager.yaml
+- ddns.yaml
 - demo.yaml
 - homeassist.yaml
 - immich.yaml

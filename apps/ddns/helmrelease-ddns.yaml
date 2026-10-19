@@ -1,0 +1,102 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ddns
+spec:
+  releaseName: ddns
+  interval: 10m
+  timeout: 10m
+  suspend: true
+  chart:
+    spec:
+      chart: app-template
+      version: 5.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: charts-app
+      interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  driftDetection:
+    mode: enabled
+  values:
+    defaultPodOptions:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+    controllers:
+      main:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        containers:
+          main:
+            image:
+              repository: timothyjmiller/cloudflare-ddns
+              tag: 2.0.2
+              digest: sha256:204c1b0c322063b49a02e1bf4c1d746d794109f54e13cbc288065717e957ed27
+              pullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - /cloudflare-ddns
+                    - --help
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - /cloudflare-ddns
+                    - --help
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - /cloudflare-ddns
+                    - --help
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+            env:
+              IP6_PROVIDER: none
+              PUID: '1000'
+              PGID: '1000'
+        forceRename: ddns
+    persistence:
+      config:
+        type: secret
+        advancedMounts:
+          main:
+            main:
+            - path: /config.json
+              subPath: config.json
+        name: ddns-config
+        defaultMode: 256
