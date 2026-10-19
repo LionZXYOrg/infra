@@ -4,5 +4,6 @@ resources:
 - cert-manager.yaml
 - changedetection.yaml
 - demo.yaml
+- immich.yaml
 - k3s-mcp.yaml
 - traefik.yaml
