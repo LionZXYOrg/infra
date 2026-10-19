@@ -77,11 +77,9 @@ def check_preparation(root, name, contract, objects):
                     f'{name}: PVC is not protected from Flux pruning')
         if o['kind'] == 'IngressRoute':
             require(o['spec']['entryPoints'] == ['websecure'] and 'tls' in o['spec'], f'{name}: route lacks TLS')
-            hostnames = {'warden': ['warden.lionzxy.ru'],
-                         'homeassist': ['ha.kulikov.uk', 'homeassist.kulikov.uk']}.get(name, [f'{name}.kulikov.uk'])
-            expected = ' || '.join(f'Host(`{hostname}`)' for hostname in hostnames)
-            require(expected == o['spec']['routes'][0]['match'],
-                    f'{name}: route must use the {" or ".join(hostnames)} host')
+            hostname = {'warden': 'warden.lionzxy.ru', 'homeassist': 'ha.kulikov.uk'}.get(name, f'{name}.kulikov.uk')
+            require(f"Host(`{hostname}`)" == o['spec']['routes'][0]['match'],
+                    f'{name}: route must use the {hostname} host')
     instructions = root / 'apps' / name / 'MIGRATION.md'
     if not suspended:
         require(not instructions.exists(), f'{name}: remove completed migration commands')

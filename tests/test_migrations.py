@@ -92,12 +92,13 @@ class WorkloadContractTests(unittest.TestCase):
 
 
 class RepositoryMigrationTests(unittest.TestCase):
-    def test_home_assistant_route_requires_both_approved_hostnames(self):
+    def test_home_assistant_route_rejects_the_old_hostname_and_aliases(self):
         contract = dict(migration.contracts())['homeassist']
         objects = migration.definitions(migration.ROOT, 'homeassist')
         migration.check_preparation(migration.ROOT, 'homeassist', contract, objects)
         route = next(obj for obj in objects if obj['kind'] == 'IngressRoute')
-        for match in ['Host(`homeassist.kulikov.uk`)', 'Host(`ha.kulikov.uk`)',
+        for match in ['Host(`homeassist.kulikov.uk`)',
+                      'Host(`ha.kulikov.uk`) || Host(`homeassist.kulikov.uk`)',
                       'Host(`ha.kulikov.uk`) && Host(`homeassist.kulikov.uk`)',
                       'Host(`ha.kulikov.uk`) || Host(`other.kulikov.uk`)']:
             with self.subTest(match=match), self.assertRaisesRegex(ValueError, 'route must use'):

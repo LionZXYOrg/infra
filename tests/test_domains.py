@@ -19,8 +19,7 @@ class DomainTests(unittest.TestCase):
                              ['kulikov.uk', 'lionzxy.ru'])
         for route in (ROOT / 'apps').glob('*/ingressroute.yaml'):
             self.assertNotIn('.test.kulikov.uk', route.read_text())
-            hostname = 'warden.lionzxy.ru' if route.parent.name == 'warden' else f'{route.parent.name}.kulikov.uk'
+            hostname = {'warden': 'warden.lionzxy.ru', 'homeassist': 'ha.kulikov.uk'}.get(
+                route.parent.name, f'{route.parent.name}.kulikov.uk')
             definition = yaml.safe_load(route.read_text())
-            expected = (f'Host(`ha.kulikov.uk`) || Host(`{hostname}`)' if route.parent.name == 'homeassist'
-                        else f'Host(`{hostname}`)')
-            self.assertEqual(definition['spec']['routes'][0]['match'], expected)
+            self.assertEqual(definition['spec']['routes'][0]['match'], f'Host(`{hostname}`)')
