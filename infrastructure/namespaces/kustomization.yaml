@@ -9,6 +9,7 @@ resources:
 - immich.yaml
 - k3s-mcp.yaml
 - obsidian.yaml
+- portainer.yaml
 - psybot.yaml
 - replacevowelbot.yaml
 - traefik.yaml

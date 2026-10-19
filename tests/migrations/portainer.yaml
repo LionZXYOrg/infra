@@ -1,0 +1,14 @@
+charts:
+  portainer:
+    chart: portainer
+    version: 245.2.0
+    url: https://github.com/portainer/k8s/releases/download/portainer-245.2.0/portainer-245.2.0.tgz
+    sha256: 89292a4fc5a734b23642009b7ebbf87db84983aa68f81136b3838388f6a64020
+workloads: 1
+secrets: []
+mounts:
+- /data
+source:
+  path: /home/docker/app/portainer
+  observedAt: '2026-10-13'
+  host: home.kulikov.uk
