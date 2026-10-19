@@ -8,4 +8,5 @@ resources:
   - secrets-source.yaml
   - infrastructure.yaml
   - apps.yaml
+  - immich.yaml
   - replacevowelbot.yaml
