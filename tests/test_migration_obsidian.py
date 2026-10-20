@@ -34,6 +34,7 @@ class MigrationTests(unittest.TestCase):
     def test_retained_storage_keeps_the_saved_database_and_target_capacity(self):
         claim = load('storage.yaml')
         self.assertEqual(claim['metadata']['name'], 'obsidian-data')
+        self.assertEqual(claim['metadata']['namespace'], 'obsidian')
         self.assertEqual(claim['metadata']['annotations']['kustomize.toolkit.fluxcd.io/prune'], 'disabled')
         self.assertEqual(claim['spec']['storageClassName'], 'local-path')
         self.assertEqual(claim['spec']['accessModes'], ['ReadWriteOnce'])

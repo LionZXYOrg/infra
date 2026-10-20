@@ -13,3 +13,4 @@ secrets:
 - obsidian-config
 mounts:
 - /opt/couchdb/data
+phase: active

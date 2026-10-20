@@ -6,7 +6,7 @@ spec:
   releaseName: obsidian
   interval: 10m
   timeout: 10m
-  suspend: true
+  suspend: false
   chart:
     spec:
       chart: couchdb
@@ -93,9 +93,5 @@ spec:
       - target:
           kind: ConfigMap
           name: obsidian-couchdb
-        patch: |-
-          - op: replace
-            path: /data/seedlistinifile
-            value: |
-              [cluster]
-              seedlist =
+        patch: "- op: replace\n  path: /data/seedlistinifile\n  value: |\n    [cluster]\n\
+          \    seedlist ="
