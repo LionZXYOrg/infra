@@ -1,5 +1,4 @@
 from pathlib import Path
-import shlex
 import unittest
 import yaml
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,21 +29,13 @@ class MigrationTests(unittest.TestCase):
             self.assertEqual(container['env']['TZ'], 'Europe/Moscow')
         self.assertEqual(len(images), 1)
 
-    @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
-    def test_restore_copies_only_the_saved_csv_without_a_retired_container(self):
-        instructions = (APP / 'MIGRATION.md').read_text()
-        commands = [shlex.split(line) for line in instructions.splitlines() if line.startswith('ssh ')]
-        self.assertEqual(len(commands), 1)
-        source, destination = commands[0][:commands[0].index('|')], commands[0][commands[0].index('|') + 1:]
-        self.assertEqual(source, [
-            'ssh', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
-            '-o', 'HostKeyAlias=home.kulikov.uk', 'lionzxy@192.168.1.109',
-            'sudo -n tar -C /home/docker/app/personal_birthday_reminder -cpf - birthday.csv',
-        ])
-        self.assertEqual(destination[-5:], ['tar', '-xpf', '-', '-C', '/restore/birthday-reminder-data'])
-        self.assertIn('restore', destination)
-        self.assertNotIn('docker cp', instructions)
-        self.assertNotIn('docker stop', instructions)
+    def test_image_source_and_publication_stay_outside_infra(self):
+        self.assertFalse((APP / 'image').exists())
+        self.assertFalse((ROOT / '.github/workflows/birthday-reminder-image.yaml').exists())
+        contract = yaml.safe_load((ROOT / 'tests/migrations/birthday-reminder.yaml').read_text())
+        self.assertNotIn('imageBuilds', contract)
+        for container in values()['controllers']['main']['containers'].values():
+            self.assertRegex(container['image']['tag'], r'^sha-[0-9a-f]{40}$')
 
     def test_bot_and_cron_share_restored_birthdays_but_keep_private_configuration(self):
         v = values()
@@ -57,7 +48,7 @@ class MigrationTests(unittest.TestCase):
         for part in ['bot', 'cron']:
             self.assertEqual(private[part][0]['subPath'], part + '-secret.py')
         self.assertIn('cron_builder.py >', v['controllers']['main']['containers']['cron']['command'][-1])
-        dockerfile = (APP / 'image/Dockerfile').read_text()
-        self.assertNotIn('COPY secret.py', dockerfile)
-        self.assertNotIn('COPY birthday.csv', dockerfile)
-        self.assertNotIn('RUN python /app/cron_builder.py', dockerfile)
+        for part in ['bot', 'cron']:
+            self.assertTrue(mounts[part][0]['readOnly'])
+            self.assertEqual(private[part][0]['path'], '/app/secret.py')
+            self.assertTrue(private[part][0]['readOnly'])

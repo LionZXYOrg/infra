@@ -1,5 +1,0 @@
-.env
-secret.py
-*.csv
-data
-__pycache__

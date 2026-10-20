@@ -10,9 +10,6 @@ secrets:
 mounts:
 - /app/birthday.csv
 - /app/secret.py
-imageBuilds:
-- context: apps/birthday-reminder/image
-  fixtureEnvironment: {}
 source:
   path: /home/docker/app/personal_birthday_reminder
   observedAt: '2026-10-13'
