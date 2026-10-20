@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1m
-  path: ./infrastructure/namespaces
+  path: ./tests/isolated/namespaces
   prune: false
   deletionPolicy: Orphan
   wait: true

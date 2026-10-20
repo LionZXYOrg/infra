@@ -25,6 +25,8 @@ spec:
     mode: enabled
   values:
     clusterSize: 1
+    erlangFlags:
+      name: null
     createAdminSecret: false
     allowAdminParty: false
     extraSecretName: obsidian-config
@@ -88,3 +90,12 @@ spec:
           \  value: false\n- op: replace\n  path: /spec/template/spec/volumes/2\n\
           \  value:\n    name: database-storage\n    persistentVolumeClaim:\n    \
           \  claimName: obsidian-data\n"
+      - target:
+          kind: ConfigMap
+          name: obsidian-couchdb
+        patch: |-
+          - op: replace
+            path: /data/seedlistinifile
+            value: |
+              [cluster]
+              seedlist =

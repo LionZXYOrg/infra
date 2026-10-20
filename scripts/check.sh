@@ -79,7 +79,7 @@ if command -v kubectl >/dev/null 2>&1; then
     kubectl kustomize "$dir" >/dev/null
   done
   if [[ -f secrets/.git ]]; then kubectl kustomize secrets >/dev/null; fi
-  for dir in tests/isolated tests/isolated/tls tests/isolated/demo; do
+  for dir in tests/isolated tests/isolated/namespaces tests/isolated/tls tests/isolated/demo; do
     [[ ! -f $dir/kustomization.yaml ]] || kubectl kustomize "$dir" >/dev/null
   done
   # Flux creates this Kustomization during bootstrap. An empty or partial
