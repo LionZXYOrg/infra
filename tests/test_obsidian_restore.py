@@ -47,7 +47,7 @@ class ObsidianRestoreTests(unittest.TestCase):
             marker = uuid.uuid4().hex
             source, target = ('infra-obsidian-' + marker + suffix for suffix in ('-source', '-target'))
             volumes = [source + '-data', target + '-data', source + '-config', target + '-config']
-            helper = migration.load(ROOT / 'apps/obsidian/restore-pod.yaml')['spec']['containers'][0]
+            helper_image = next(item['image'] for item in pod['initContainers'] if item['name'] == 'init-copy')
             credentials = {'COUCHDB_USER': 'fixture-admin', 'COUCHDB_PASSWORD': uuid.uuid4().hex,
                            'COUCHDB_SECRET': uuid.uuid4().hex, 'COUCHDB_ERLANG_COOKIE': uuid.uuid4().hex}
             auth = credentials['COUCHDB_USER'] + ':' + credentials['COUCHDB_PASSWORD']
@@ -86,7 +86,7 @@ class ObsidianRestoreTests(unittest.TestCase):
                 def write_configuration(volume, name, content):
                     docker('run', '--rm', '--interactive', '--network', 'none',
                            '--mount', f'type=volume,src={volume},dst=/configuration',
-                           '--entrypoint', 'sh', helper['image'], '-ec',
+                           '--entrypoint', 'sh', helper_image, '-ec',
                            f'cat > /configuration/{name}', input_text=content)
 
                 write_configuration(volumes[2], 'fixture.ini', '[couchdb]\nsingle_node = true\n')
@@ -100,7 +100,7 @@ class ObsidianRestoreTests(unittest.TestCase):
                 docker('run', '--rm', '--network', 'none',
                        '--mount', f'type=volume,src={volumes[0]},dst=/source,readonly',
                        '--mount', f'type=volume,src={volumes[1]},dst=/target',
-                       '--entrypoint', 'sh', helper['image'], '-ec',
+                       '--entrypoint', 'sh', helper_image, '-ec',
                        'set -o pipefail; tar -C /source -cpf - . | tar -xpf - -C /target; chown -R 5984:5984 /target')
                 write_configuration(volumes[3], 'chart.ini', configuration['inifile'])
                 write_configuration(volumes[3], 'seedlist.ini', configuration['seedlistinifile'])
