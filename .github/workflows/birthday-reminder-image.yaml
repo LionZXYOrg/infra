@@ -1,0 +1,54 @@
+name: Publish birthday-reminder image
+
+on:
+  push:
+    branches: [codex/activate-birthday-reminder]
+    paths: [.github/workflows/birthday-reminder-image.yaml]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.repository == 'LionZXYOrg/infra' && github.ref == 'refs/heads/codex/activate-birthday-reminder'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_REPOSITORY: ghcr.io/lionzxyorg/birthday-reminder
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: e12dd2fd69da3b32217fbca180482b0256c1dad7
+          persist-credentials: false
+          submodules: false
+      - name: Build and test the public source
+        run: |
+          revision="$(git rev-parse HEAD)"
+          image="$IMAGE_REPOSITORY:sha-$revision"
+          echo "PUBLISHED_IMAGE=$image" >> "$GITHUB_ENV"
+          docker build --pull --platform linux/amd64 \
+            --label org.opencontainers.image.source=https://github.com/LionZXYOrg/infra \
+            --label "org.opencontainers.image.revision=$revision" \
+            --tag "$image" apps/birthday-reminder/image
+          docker run --rm --network none --entrypoint python "$image" \
+            -m unittest discover -s tests -v
+      - name: Publish the tested image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$PUBLISHED_IMAGE"
+          docker pull "$PUBLISHED_IMAGE"
+          docker image inspect "$PUBLISHED_IMAGE" --format '{{json .RepoDigests}}' \
+            > "$RUNNER_TEMP/birthday-image-digests.json"
+          docker logout ghcr.io
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: birthday-reminder-image-${{ github.run_id }}
+          path: ${{ runner.temp }}/birthday-image-digests.json
+          if-no-files-found: error
+          retention-days: 7
