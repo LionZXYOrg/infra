@@ -5,8 +5,7 @@ kubectl --kubeconfig "$KUBECONFIG" apply -f infrastructure/namespaces/birthday-r
 kubectl --kubeconfig "$KUBECONFIG" apply -f apps/birthday-reminder/storage.yaml
 kubectl --kubeconfig "$KUBECONFIG" apply -f apps/birthday-reminder/restore-pod.yaml
 kubectl --kubeconfig "$KUBECONFIG" -n birthday-reminder wait pod/restore --for=condition=Ready --timeout=300s
-ssh root@192.168.1.109 'docker stop personal_birthday_reminder-bh_reminder_bot-1 personal_birthday_reminder-bh_reminder_cron-1' > /dev/null
-ssh root@192.168.1.109 'docker cp personal_birthday_reminder-bh_reminder_bot-1:/app/birthday.csv -' | kubectl --kubeconfig "$KUBECONFIG" -n birthday-reminder exec -i restore -- tar -xpf - -C /restore/birthday-reminder-data
+ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o HostKeyAlias=home.kulikov.uk lionzxy@192.168.1.109 'sudo -n tar -C /home/docker/app/personal_birthday_reminder -cpf - birthday.csv' | kubectl --kubeconfig "$KUBECONFIG" -n birthday-reminder exec -i restore -- tar -xpf - -C /restore/birthday-reminder-data
 kubectl --kubeconfig "$KUBECONFIG" -n birthday-reminder delete pod restore --wait=true
 ```
 
