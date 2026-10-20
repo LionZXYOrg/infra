@@ -1,9 +1,6 @@
 name: Publish birthday-reminder image
 
 on:
-  push:
-    branches: [codex/activate-birthday-reminder]
-    paths: [.github/workflows/birthday-reminder-image.yaml]
   workflow_dispatch: {}
 
 permissions:
@@ -11,7 +8,7 @@ permissions:
 
 jobs:
   publish:
-    if: github.repository == 'LionZXYOrg/infra' && github.ref == 'refs/heads/codex/activate-birthday-reminder'
+    if: github.repository == 'LionZXYOrg/infra' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -22,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: e12dd2fd69da3b32217fbca180482b0256c1dad7
+          ref: ${{ github.sha }}
           persist-credentials: false
           submodules: false
       - name: Build and test the public source

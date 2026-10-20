@@ -10,6 +10,26 @@ def values():
     return load('helmrelease-birthday-reminder.yaml')['spec']['values']
 
 class MigrationTests(unittest.TestCase):
+    def test_activation_preserves_the_restored_claim_and_retention(self):
+        claim = load('storage.yaml')
+        self.assertEqual(claim['metadata']['name'], 'birthday-reminder-data')
+        self.assertEqual(claim['metadata']['annotations']['kustomize.toolkit.fluxcd.io/prune'], 'disabled')
+        self.assertEqual(claim['spec']['storageClassName'], 'local-path')
+        self.assertEqual(claim['spec']['accessModes'], ['ReadWriteOnce'])
+        self.assertEqual(claim['spec']['resources']['requests']['storage'], '1Gi')
+        self.assertEqual(values()['persistence']['data']['existingClaim'], claim['metadata']['name'])
+
+    def test_both_containers_use_the_same_published_image_and_timezone(self):
+        containers = values()['controllers']['main']['containers']
+        images = set()
+        for container in containers.values():
+            image = container['image']
+            self.assertEqual(image['repository'], 'ghcr.io/lionzxyorg/birthday-reminder')
+            self.assertRegex(image['digest'], r'^sha256:[0-9a-f]{64}$')
+            images.add((image['repository'], image['tag'], image['digest']))
+            self.assertEqual(container['env']['TZ'], 'Europe/Moscow')
+        self.assertEqual(len(images), 1)
+
     @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
     def test_restore_copies_only_the_saved_csv_without_a_retired_container(self):
         instructions = (APP / 'MIGRATION.md').read_text()

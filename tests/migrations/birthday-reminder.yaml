@@ -10,8 +10,6 @@ secrets:
 mounts:
 - /app/birthday.csv
 - /app/secret.py
-pendingImages:
-- ghcr.io/lionzxyorg/birthday-reminder:live-20261013
 imageBuilds:
 - context: apps/birthday-reminder/image
   fixtureEnvironment: {}
@@ -19,3 +17,4 @@ source:
   path: /home/docker/app/personal_birthday_reminder
   observedAt: '2026-10-13'
   host: home.kulikov.uk
+phase: active

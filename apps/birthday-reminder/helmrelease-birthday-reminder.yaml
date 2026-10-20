@@ -6,7 +6,7 @@ spec:
   releaseName: birthday-reminder
   interval: 10m
   timeout: 10m
-  suspend: true
+  suspend: false
   chart:
     spec:
       chart: app-template
@@ -40,8 +40,9 @@ spec:
           bot:
             image:
               repository: ghcr.io/lionzxyorg/birthday-reminder
-              tag: live-20261013
+              tag: sha-e12dd2fd69da3b32217fbca180482b0256c1dad7
               pullPolicy: IfNotPresent
+              digest: sha256:d3354a8b7112670939dc17d888d6dec613367cc7581d53cad09b97a265b1d619
             resources:
               requests:
                 cpu: 50m
@@ -96,8 +97,9 @@ spec:
           cron:
             image:
               repository: ghcr.io/lionzxyorg/birthday-reminder
-              tag: live-20261013
+              tag: sha-e12dd2fd69da3b32217fbca180482b0256c1dad7
               pullPolicy: IfNotPresent
+              digest: sha256:d3354a8b7112670939dc17d888d6dec613367cc7581d53cad09b97a265b1d619
             resources:
               requests:
                 cpu: 50m
