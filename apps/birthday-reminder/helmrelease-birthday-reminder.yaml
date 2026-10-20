@@ -40,9 +40,9 @@ spec:
           bot:
             image:
               repository: ghcr.io/lionzxyorg/birthday-reminder
-              tag: sha-e12dd2fd69da3b32217fbca180482b0256c1dad7
+              tag: sha-c4b9b0a146b5fab4d5604d776fe66094fabb066f
               pullPolicy: IfNotPresent
-              digest: sha256:d3354a8b7112670939dc17d888d6dec613367cc7581d53cad09b97a265b1d619
+              digest: sha256:364be80e80786ea7dc76ac5fb278135d4b57c833e8de6e980320065562f25caa
             resources:
               requests:
                 cpu: 50m
@@ -97,9 +97,9 @@ spec:
           cron:
             image:
               repository: ghcr.io/lionzxyorg/birthday-reminder
-              tag: sha-e12dd2fd69da3b32217fbca180482b0256c1dad7
+              tag: sha-c4b9b0a146b5fab4d5604d776fe66094fabb066f
               pullPolicy: IfNotPresent
-              digest: sha256:d3354a8b7112670939dc17d888d6dec613367cc7581d53cad09b97a265b1d619
+              digest: sha256:364be80e80786ea7dc76ac5fb278135d4b57c833e8de6e980320065562f25caa
             resources:
               requests:
                 cpu: 50m
