@@ -7,7 +7,7 @@ spec:
     - websecure
   routes:
     - kind: Rule
-      match: Host(`demo.kulikov.uk`)
+      match: Host(`demo.infra.test`)
       services:
         - name: demo
           port: 80

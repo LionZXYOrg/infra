@@ -17,6 +17,21 @@ EXCLUDED = {'pihole', 'n8n', 'litnetbot', 'imgur', 'samba', 'switchstatic', 'tab
             'aiobashim', 'qbittorrentbot', 'lionbot', 'wireguard', 'midpass'}
 
 
+PUBLIC_HOSTNAMES = {
+    'changedetection': 'cd.kulikov.uk',
+    'copyparty': 'cp.kulikov.uk',
+    'homeassist': 'ha.kulikov.uk',
+    'immich': 'immich.kulikov.uk',
+    'localcontentshare': 'share.kulikov.uk',
+    'obsidian': 'obsidian.kulikov.uk',
+    'portainer': 'portainer.lionzxy.ru',
+    'qbittorrent': 'torrent.kulikov.uk',
+    'speedtest': 'speedtest.kulikov.uk',
+    'transfersh': 'transfer.kulikov.uk',
+    'warden': 'warden.lionzxy.ru',
+}
+
+
 def require(ok, message):
     if not ok:
         raise ValueError(message)
@@ -77,7 +92,7 @@ def check_preparation(root, name, contract, objects):
                     f'{name}: PVC is not protected from Flux pruning')
         if o['kind'] == 'IngressRoute':
             require(o['spec']['entryPoints'] == ['websecure'] and 'tls' in o['spec'], f'{name}: route lacks TLS')
-            hostname = 'warden.lionzxy.ru' if name == 'warden' else f'{name}.kulikov.uk'
+            hostname = PUBLIC_HOSTNAMES.get(name, f'{name}.kulikov.uk')
             require(f"Host(`{hostname}`)" == o['spec']['routes'][0]['match'],
                     f'{name}: route must use the {hostname} host')
     instructions = root / 'apps' / name / 'MIGRATION.md'

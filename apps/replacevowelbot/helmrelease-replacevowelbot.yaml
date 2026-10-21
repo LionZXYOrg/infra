@@ -6,7 +6,7 @@ spec:
   releaseName: replacevowelbot
   interval: 10m
   timeout: 10m
-  suspend: true
+  suspend: false
   chart:
     spec:
       chart: app-template
@@ -37,6 +37,9 @@ spec:
         strategy: Recreate
         containers:
           main:
+            command:
+            - python
+            - /app/main.py
             image:
               repository: lionzxy/replace_vowel_bot
               tag: '2'

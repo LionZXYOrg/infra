@@ -12,3 +12,4 @@ workloads: 1
 secrets:
 - replacevowelbot-config
 mounts: []
+phase: active

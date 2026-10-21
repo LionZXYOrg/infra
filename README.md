@@ -59,16 +59,15 @@ flux get kustomizations -A
 kubectl get nodes
 ```
 
-Open `https://demo.kulikov.uk`.
 The kubeconfig file gives you cluster access. To fetch only that file, add `--fetch-kubeconfig` to the bootstrap command.
 Do not replace the recovery key during a restore. Back up its password outside Git.
 Git restores configuration, not databases or stored files. Back up that data separately.
 
 ## Add a service
 
-Use `apps/demo/` as a template for the image, ports, probes, storage, and HTTPS
-route. Add the service's namespace under `infrastructure/namespaces/` and a Flux
-Kustomization under `clusters/home/`; include both in their resource lists.
+Create the service under `apps/` with its image, ports, health probes, storage, and HTTPS route.
+Add its namespace under `infrastructure/namespaces/` and a Flux Kustomization under `clusters/home/`.
+Include both files in their resource lists.
 Use `myapp.kulikov.uk` for the route and `tls: {}` for the shared certificate.
 
 If the service needs a secret, update the private module first:
@@ -201,3 +200,107 @@ bash scripts/check.sh
 These checks work without private repository access. Every PR also runs a fresh
 deployment with disposable secrets and local TLS in GitHub Actions. See the
 [isolated deployment procedure](tests/isolated/README.md) to run it in a VM.
+
+## Shared Telegram bot
+
+The [application repository](https://github.com/LionZXYOrg/acorn-care-bot) owns the workers, gateway, Helm chart, tests, and operating procedure.
+`apps/telegram-bot-suite` contains only Flux resources and this cluster's values.
+Flux reads `charts/telegram-bot-suite` from an exact application commit.
+The image uses a tested commit tag and immutable digest.
+
+The preparation keeps both Flux objects suspended and sets zero replicas.
+The current Acorn Deployment, reminder jobs, and saved records remain unchanged.
+Do not enable both care receivers. Duplicate reminders can cause caregivers to issue the same portion twice.
+Follow the [activation and rollback procedure](https://github.com/LionZXYOrg/acorn-care-bot/blob/main/docs/shared-suite.md) before enabling the suite.
+
+For this cluster, preserve Secret `acorn-care-bot`, the existing care claim, and the approved care plan.
+Supply Secret `greenwich-bin-bot-property` through the private secret procedure before activation.
+Stop bin job `d3cf4dc9-a75d-42b2-943c-0e1d6ba7ac36` during the coordinated cutover.
+Keep retired duplicate `cb3196b1-dad3-4ea6-82b1-608143c735ad` disabled.
+Old standalone Acorn manifests remain until that cutover. They still control the live service.
+
+## Acorn care bot
+
+The [separate bot repository](https://github.com/LionZXYOrg/acorn-care-bot) contains the application and its image build.
+The bot sends shared care reminders to one Telegram topic.
+It saves each caregiver confirmation before it answers a button press.
+The planned meal times are `07:00`, `14:00`, and `19:00` in `Europe/London`.
+Wet food uses can fractions. Dry food uses grams.
+
+The owners approved public storage of the chat, topic, caregiver IDs, and recurring care plan.
+`apps/acorn-care-bot/runtime.properties` contains the Telegram destination, numeric caregiver IDs, and the fresh-start setting.
+`apps/acorn-care-bot/config.json` contains the approved portions, stage dates, caregiver mentions, and `add_full` transfer policy.
+The morning time applies from `2026-10-20`. This configuration does not recreate the earlier breakfast on `2026-10-19`.
+The Deployment reads these files through a generated ConfigMap, a Kubernetes object for nonsecret configuration.
+A change to either file changes the ConfigMap name and the Deployment references.
+
+The owners disabled automatic repeat reminders with `automatic_repeats: false` on `2026-10-20`.
+The bot still sends each scheduled checklist once at `07:00`, `14:00`, and `19:00`.
+An explicit snooze sends one reminder at its requested time.
+The updated image applies this setting to existing state at startup without changing confirmations, portions, holds, or pending transfers.
+
+The owners requested bowl washing and wiping the feeding area once daily, at breakfast.
+`bowls_morning_only: true` selects this schedule. Dinner keeps its litter task.
+Breakfast keeps litter, bowls, and fresh water. Lunch has no routine cleaning.
+This setting requires a bot image that supports the morning-only startup update.
+That update preserves completed tasks, historical records, food portions, and explicit one-time transfers.
+It cancels only open routine bowl tasks outside breakfast from the activation date onward.
+Removing the flag does not restore the previous cleaning schedule.
+
+Keep the bot token in the private secrets module.
+Do not add it to either public configuration file.
+The application Secret needs only the existing `bot-token` key.
+The Deployment mounts that key separately from the public configuration.
+Numeric caregiver IDs still control access. A displayed username does not grant access.
+
+The repository and GHCR image are public.
+The Deployment pulls the image without registry credentials or `imagePullSecrets`.
+Repository visibility does not change package visibility. Configure the GHCR package separately.
+The image uses a tested commit tag and an immutable digest for both supported architectures.
+The bot needs outbound HTTPS, not a public HTTP route.
+Its health endpoints stay inside the cluster.
+
+The Flux object enables one replica with the `Recreate` strategy.
+Do not run both reminder services. Duplicate requests can cause caregivers to issue the same portion twice.
+Before merging this activation, complete the coordinated cutover:
+
+1. Make sure that the pinned image is available without registry credentials.
+2. Make sure that the existing application Secret contains `bot-token`.
+3. Give the separate bot access to the configured Telegram group and topic.
+4. Make sure that the old care record has no active health-related hold.
+5. Stop the old reminder scheduler and any pending reminder jobs before merging the activation.
+6. Keep the old care record unchanged as an archive.
+
+If the application Secret is absent, use `python3 scripts/secretctl.py add acorn-care-bot acorn-care-bot --prompt bot-token`.
+If `bot-token` already exists, preserve it. No additional application Secret keys are required.
+Use a separate bot token. Do not reuse the assistant token or change its Telegram listener.
+Commit private changes before updating the public submodule pointer.
+Do not read or copy the bot token to test public registry access.
+
+The owners requested a fresh record without importing existing confirmations or queued transfers.
+`ACORN_FRESH_START=1` selects this mode for the first start on an empty volume.
+The bot records its startup time and creates checklists only for later planned care times.
+It does not replay earlier feedings or change the recurring portions and stage dates.
+On restart, it keeps that original cutoff and all records that the new bot creates.
+This setting never resets an existing volume.
+
+Stop the old care scheduler before activating the new bot.
+Keep the old record unchanged as an archive. Do not import its marks, transfers, or Telegram message bindings.
+If a later cutover requires history, follow the bot repository's explicit migration procedure instead of the fresh-start mode.
+A health-related hold needs separate review before a fresh start. Do not discard an active hold.
+The new service saves its record at `/data/state.json` on the `acorn-care-bot-state` volume.
+The volume survives Flux pruning and needs a separate backup.
+
+After the activation merges, make sure that Flux applies its revision.
+Use `Recreate` so that only one process writes the record.
+Do not scale the bot above one replica.
+Make sure that `/readyz` succeeds and test one confirmation with the new bot.
+If startup fails, stop the new bot before resuming the old scheduler.
+A local-path volume stays on its original node. Follow the cluster backup procedure before moving it.
+
+Public tests render the ConfigMap, Secret references, storage, and single-replica activation.
+They also exercise configuration-name changes without contacting Telegram or reading credentials.
+The disposable deployment test excludes the active production Flux object and rejects any bot workload that starts there.
+Prepared applications still enter CI only as suspended Flux objects.
+The disposable cluster does not run the bot or use live care records.
+A real Telegram confirmation test remains part of activation, not a public CI test.

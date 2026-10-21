@@ -62,6 +62,22 @@ def commit(repo: Path, message: str) -> str:
     return command(['git', 'rev-parse', 'HEAD'], cwd=repo).decode().strip()
 
 
+def include_suspended_application(infra, isolated_root, isolated, name):
+    """Copy a prepared Flux object. Exclude active production applications."""
+    source = infra / 'clusters/home' / (name + '.yaml')
+    if not source.exists():
+        return
+    manifest = yaml.safe_load(source.read_text())
+    suspended = manifest['spec'].get('suspend')
+    if suspended is False:
+        return
+    if suspended is not True:
+        raise ValueError('Application requires an explicit boolean suspension setting')
+    destination = name + '.yaml'
+    (isolated_root.parent / destination).write_bytes(source.read_bytes())
+    isolated['resources'].append(destination)
+
+
 @dataclass
 class FixtureSet:
     work: Path
@@ -110,6 +126,8 @@ class FixtureSet:
                 (isolated_root.parent / destination).write_bytes(
                     (infra / 'clusters/home' / destination).read_bytes())
                 isolated['resources'].append(destination)
+        include_suspended_application(infra, isolated_root, isolated, 'acorn-care-bot')
+        include_suspended_application(infra, isolated_root, isolated, 'telegram-bot-suite')
         for contract in sorted((infra / 'tests/migrations').glob('*.yaml')):
             name = contract.stem
             migration = yaml.safe_load((infra / 'clusters/home' / f'{name}.yaml').read_text())
