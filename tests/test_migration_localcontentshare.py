@@ -22,10 +22,12 @@ class MigrationTests(unittest.TestCase):
         commands = (APP / 'MIGRATION.md').read_text()
         ssh_line = next(line for line in commands.splitlines() if line.startswith('SSH=('))
         self.assertEqual(shlex.split(ssh_line[len('SSH=('):-1]), [
-            'ssh', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
+            'ssh', '-n', '-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
             '-o', 'HostKeyAlias=home.kulikov.uk', '-o', 'ConnectTimeout=10', 'lionzxy@192.168.1.109'])
         self.assertIn('sudo -n tar -C /home/docker/app/localcontentshare/data -cpf - .', commands)
-        self.assertIn('tar -xpf - -C /restore/localcontentshare-data', commands)
+        self.assertIn('tar -xpf /tmp/localcontentshare-data.tar -C /restore/localcontentshare-data', commands)
+        self.assertIn('test "$ARCHIVE_SHA" = "${POD_SHA%% *}"', commands)
+        self.assertNotIn('exec -i restore', commands)
         self.assertIn('docker ps --filter name=local-content-share', commands)
         for line in commands.splitlines():
             if line.startswith('kubectl ') and ('storage.yaml' in line or 'restore-pod.yaml' in line):

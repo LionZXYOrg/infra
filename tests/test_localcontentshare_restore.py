@@ -98,7 +98,8 @@ class LocalContentShareRestoreTests(unittest.TestCase):
                        '--mount', f'type=volume,src={volumes[0]},dst=/source,readonly',
                        '--mount', f'type=volume,src={volumes[1]},dst=/target',
                        HELPER_IMAGE, 'sh', '-ec',
-                       'set -o pipefail; tar -C /source -cpf - . | tar -xpf - -C /target')
+                       'tar -C /source -cpf /tmp/restore.tar .; '
+                       'tar -tf /tmp/restore.tar >/dev/null; tar -xpf /tmp/restore.tar -C /target')
                 base = start(names[1], volumes[1])
                 assert_restored_content(base)
                 request(base, '/notepad/md.file', b'Writable after restore')
