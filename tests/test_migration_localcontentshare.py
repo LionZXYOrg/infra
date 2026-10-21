@@ -22,9 +22,12 @@ class MigrationTests(unittest.TestCase):
         commands = (APP / 'MIGRATION.md').read_text()
         ssh_line = next(line for line in commands.splitlines() if line.startswith('SSH=('))
         self.assertEqual(shlex.split(ssh_line[len('SSH=('):-1]), [
-            'ssh', '-n', '-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
-            '-o', 'HostKeyAlias=home.kulikov.uk', '-o', 'ConnectTimeout=10', 'lionzxy@192.168.1.109'])
-        self.assertIn('sudo -n tar -C /home/docker/app/localcontentshare/data -cpf - .', commands)
+            'ssh', '-n', '-T', '-o', 'StrictHostKeyChecking=yes',
+            '-o', 'UserKnownHostsFile=$KNOWN_HOSTS', '-o', 'HostKeyAlgorithms=ssh-ed25519',
+            '-o', 'ConnectTimeout=10', 'root@192.168.1.109'])
+        self.assertTrue(commands.startswith("```bash\nbash <<'LOCALCONTENTSHARE_MIGRATION'\n"))
+        self.assertIn('192.168.1.109 ssh-ed25519 ', commands)
+        self.assertIn('tar -C /home/docker/app/localcontentshare/data -cpf - .', commands)
         self.assertIn('tar -xpf /tmp/localcontentshare-data.tar -C /restore/localcontentshare-data', commands)
         self.assertIn('test "$ARCHIVE_SHA" = "${POD_SHA%% *}"', commands)
         self.assertNotIn('exec -i restore', commands)
@@ -32,7 +35,7 @@ class MigrationTests(unittest.TestCase):
         for line in commands.splitlines():
             if line.startswith('kubectl ') and ('storage.yaml' in line or 'restore-pod.yaml' in line):
                 self.assertIn('-n localcontentshare apply', line)
-        for forbidden in ['root@', 'docker stop', 'gh pr', 'git switch', 'flux ', 'sops ', 'age ']:
+        for forbidden in ['HostKeyAlias', 'home.kulikov.uk', 'lionzxy@', 'sudo ', 'docker stop', 'gh pr', 'git switch', 'flux ', 'sops ', 'age ']:
             self.assertNotIn(forbidden, commands)
 
     def test_restore_preserves_app_data_and_https_target(self):

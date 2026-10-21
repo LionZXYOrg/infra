@@ -1,14 +1,17 @@
 ```bash
+bash <<'LOCALCONTENTSHARE_MIGRATION'
 set -euo pipefail
 : "${KUBECONFIG:?}"
-SSH=(ssh -n -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o HostKeyAlias=home.kulikov.uk -o ConnectTimeout=10 lionzxy@192.168.1.109)
-"${SSH[@]}" 'sudo -n test -d /home/docker/app/localcontentshare/data'
-"${SSH[@]}" 'test -z "$(sudo -n docker ps --filter name=local-content-share --format "{{.ID}}")"'
 umask 077
 WORK_DIR="$(mktemp -d)"
 ARCHIVE="$WORK_DIR/localcontentshare-data.tar"
-trap 'rm -f -- "$ARCHIVE"; rmdir -- "$WORK_DIR"' EXIT
-"${SSH[@]}" 'sudo -n tar -C /home/docker/app/localcontentshare/data -cpf - .' > "$ARCHIVE"
+KNOWN_HOSTS="$WORK_DIR/known_hosts"
+trap 'rm -f -- "$ARCHIVE" "$KNOWN_HOSTS"; rmdir -- "$WORK_DIR"' EXIT
+printf '%s\n' '192.168.1.109 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINVS7UdSqrX5YtD1oy14VtvHr5YrQMbr46YVW8tfwOVs' > "$KNOWN_HOSTS"
+SSH=(ssh -n -T -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$KNOWN_HOSTS" -o HostKeyAlgorithms=ssh-ed25519 -o ConnectTimeout=10 root@192.168.1.109)
+"${SSH[@]}" 'test -d /home/docker/app/localcontentshare/data'
+"${SSH[@]}" 'test -z "$(docker ps --filter name=local-content-share --format "{{.ID}}")"'
+"${SSH[@]}" 'tar -C /home/docker/app/localcontentshare/data -cpf - .' > "$ARCHIVE"
 test -s "$ARCHIVE"
 tar -tf "$ARCHIVE" > /dev/null
 ARCHIVE_SHA="$(shasum -a 256 "$ARCHIVE")"
@@ -22,4 +25,5 @@ POD_SHA="$(kubectl --kubeconfig "$KUBECONFIG" -n localcontentshare exec restore 
 test "$ARCHIVE_SHA" = "${POD_SHA%% *}"
 kubectl --kubeconfig "$KUBECONFIG" -n localcontentshare exec restore -- tar -xpf /tmp/localcontentshare-data.tar -C /restore/localcontentshare-data
 kubectl --kubeconfig "$KUBECONFIG" -n localcontentshare delete pod restore --wait=true --timeout=120s
+LOCALCONTENTSHARE_MIGRATION
 ```
