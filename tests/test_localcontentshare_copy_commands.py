@@ -71,7 +71,7 @@ class LocalContentShareCopyCommandTests(unittest.TestCase):
             for path in (ssh, kubectl):
                 path.chmod(0o755)
             for fault in ('none', 'empty', 'truncated', 'source-empty', 'ssh-error'):
-                for parent in ('plain', 'conditional'):
+                for parent in ('plain', 'conditional', 'unexported'):
                     with self.subTest(fault=fault, parent=parent):
                         for name in ('calls.jsonl', 'pod.tar', 'extracted', 'ssh-calls'):
                             (work / name).unlink(missing_ok=True)
@@ -81,6 +81,8 @@ class LocalContentShareCopyCommandTests(unittest.TestCase):
                         script = commands[0]
                         if parent == 'conditional':
                             script = 'set +e\nif ' + script + '\nthen\n :\nelse\n exit 1\nfi\n'
+                        if parent == 'unexported':
+                            script = 'export -n KUBECONFIG\n' + script
                         result = subprocess.run(['bash', '-c', script], cwd=ROOT,
                                                 env=environment, capture_output=True, timeout=20)
                         if fault == 'none':

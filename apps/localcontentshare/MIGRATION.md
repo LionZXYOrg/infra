@@ -1,5 +1,5 @@
 ```bash
-bash <<'LOCALCONTENTSHARE_MIGRATION'
+KUBECONFIG="${KUBECONFIG:?}" bash <<'LOCALCONTENTSHARE_MIGRATION'
 set -euo pipefail
 : "${KUBECONFIG:?}"
 umask 077

@@ -25,7 +25,7 @@ class MigrationTests(unittest.TestCase):
             'ssh', '-n', '-T', '-o', 'StrictHostKeyChecking=yes',
             '-o', 'UserKnownHostsFile=$KNOWN_HOSTS', '-o', 'HostKeyAlgorithms=ssh-ed25519',
             '-o', 'ConnectTimeout=10', 'root@192.168.1.109'])
-        self.assertTrue(commands.startswith("```bash\nbash <<'LOCALCONTENTSHARE_MIGRATION'\n"))
+        self.assertTrue(commands.startswith("```bash\nKUBECONFIG=\"${KUBECONFIG:?}\" bash <<'LOCALCONTENTSHARE_MIGRATION'\n"))
         self.assertIn('192.168.1.109 ssh-ed25519 ', commands)
         self.assertIn('tar -C /home/docker/app/localcontentshare/data -cpf - .', commands)
         self.assertIn('tar -xpf /tmp/localcontentshare-data.tar -C /restore/localcontentshare-data', commands)
