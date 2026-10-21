@@ -13,4 +13,5 @@ resources:
 - psybot.yaml
 - replacevowelbot.yaml
 - traefik.yaml
+- transfersh.yaml
 - warden.yaml

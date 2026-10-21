@@ -1,0 +1,13 @@
+# Pin the tested chart commit. Do not follow the moving main branch.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: telegram-bot-suite
+spec:
+  interval: 1h
+  url: https://github.com/LionZXYOrg/acorn-care-bot
+  ref:
+    commit: 321654cdc0964ab2a48ca424e436fc9c7e5b0d03
+  ignore: |
+    /*
+    !/charts

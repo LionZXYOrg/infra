@@ -4,8 +4,8 @@ metadata:
   name: acorn-care-bot
   namespace: flux-system
 spec:
-  # Keep disabled until the new token, private image access, and state cutover are ready.
-  suspend: true
+  # The pinned image is public. Stop the old reminder scheduler before activation.
+  suspend: false
   dependsOn:
     - name: infra-namespaces
     - name: cluster-secrets

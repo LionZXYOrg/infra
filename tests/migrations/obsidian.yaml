@@ -1,0 +1,16 @@
+source:
+  path: /home/docker/app/obsidian
+  observedAt: '2026-10-13'
+  host: home.kulikov.uk
+charts:
+  obsidian:
+    chart: couchdb
+    version: 4.6.3
+    url: https://github.com/apache/couchdb-helm/releases/download/couchdb-4.6.3/couchdb-4.6.3.tgz
+    sha256: 33a028ac76293c039d382d507800f4510dc1a3ad8050f1d43f2e61b2e7138864
+workloads: 1
+secrets:
+- obsidian-config
+mounts:
+- /opt/couchdb/data
+phase: active
