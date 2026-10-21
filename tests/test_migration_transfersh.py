@@ -10,6 +10,12 @@ def release(name):
     return load('helmrelease-' + name + '.yaml')
 
 class MigrationTests(unittest.TestCase):
+    def test_storage_stays_in_the_service_namespace_and_survives_pruning(self):
+        storage = load('storage.yaml')
+        self.assertEqual(storage['metadata']['namespace'], 'transfersh')
+        self.assertEqual(storage['metadata']['annotations']['kustomize.toolkit.fluxcd.io/prune'], 'disabled')
+        self.assertEqual(storage['spec']['accessModes'], ['ReadWriteOnce'])
+
     def test_local_provider_and_expiry_are_preserved(self):
         v = release('transfersh')['spec']['values']
         c = v['controllers']['main']['containers']['main']

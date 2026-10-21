@@ -12,3 +12,4 @@ workloads: 1
 secrets: []
 mounts:
 - /storage
+phase: active
