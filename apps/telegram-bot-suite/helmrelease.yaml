@@ -1,0 +1,253 @@
+# Keep this release suspended until the coordinated cutover.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: telegram-bot-suite
+spec:
+  releaseName: telegram-bot-suite
+  interval: 10m
+  timeout: 5m
+  suspend: true
+  chart:
+    spec:
+      chart: ./charts/telegram-bot-suite
+      reconcileStrategy: Revision
+      sourceRef:
+        kind: GitRepository
+        name: telegram-bot-suite
+      interval: 10m
+  install:
+    remediation:
+      retries: 0
+  upgrade:
+    remediation:
+      retries: 0
+  driftDetection:
+    mode: enabled
+  values:
+    fullnameOverride: telegram-bot-suite
+    replicas: 0
+    image: ghcr.io/lionzxyorg/acorn-care-bot:sha-321654cdc0964ab2a48ca424e436fc9c7e5b0d03@sha256:ca303e24858f3c615711cc6b5717ab3f3e71205401ac6ba7551ccea463010549
+    gateway:
+      tokenSecret:
+        name: acorn-care-bot
+        key: bot-token
+      persistence:
+        size: 128Mi
+        storageClassName: local-path
+    legacyAcorn:
+      workerId: acorn
+    workers:
+    - id: acorn
+      uid: 10001
+      command:
+      - python3
+      - /app/service.py
+      route:
+        chat_id: -1004424243504
+        topic_id: 210
+        receives_updates: true
+        allowed_user_ids:
+        - 474744725
+        - 1235433892
+        methods:
+        - getMe
+        - getWebhookInfo
+        - getChatMember
+        - getUpdates
+        - sendMessage
+        - editMessageText
+        - answerCallbackQuery
+      env:
+        ACORN_CONFIG_PATH: /etc/worker/config.json
+        ACORN_STATE_PATH: /data/state.json
+        ACORN_FRESH_START: '1'
+      persistence:
+        existingClaim: acorn-care-bot-state
+      config:
+        config.json: |
+          {
+            "version": 1,
+            "name": "Acorn",
+            "timezone": "Europe/London",
+            "start_date": "2026-10-19",
+            "repeat_minutes": 30,
+            "automatic_repeats": false,
+            "bowls_morning_only": true,
+            "quiet_start": "23:00",
+            "quiet_end": "07:00",
+            "wet_product": "Royal Canin Gastrointestinal Kitten",
+            "wet_can_grams": 195,
+            "dry_product": "Royal Canin Gastrointestinal Kitten",
+            "slots": [
+              {
+                "key": "breakfast",
+                "time": "07:00",
+                "label": "Завтрак и утренняя уборка",
+                "cleaning": true
+              },
+              {
+                "key": "lunch",
+                "time": "14:00",
+                "label": "Обед",
+                "cleaning": false
+              },
+              {
+                "key": "dinner",
+                "time": "19:00",
+                "label": "Ужин и вечерняя уборка",
+                "cleaning": true,
+                "cleaning_tasks": [
+                  "litter"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "weeks_1_2",
+                "start": "2026-10-19",
+                "label": "Недели 1–2",
+                "wet": [
+                  49,
+                  49,
+                  97
+                ],
+                "dry": [
+                  10,
+                  10,
+                  10
+                ],
+                "daily_wet": 195,
+                "daily_dry": 30
+              },
+              {
+                "id": "week_3",
+                "start": "2026-11-02",
+                "label": "Неделя 3",
+                "wet": [
+                  33,
+                  32,
+                  65
+                ],
+                "dry": [
+                  15,
+                  15,
+                  16
+                ],
+                "daily_wet": 130,
+                "daily_dry": 46
+              },
+              {
+                "id": "week_4",
+                "start": "2026-11-09",
+                "label": "Неделя 4",
+                "wet": [
+                  0,
+                  0,
+                  65
+                ],
+                "dry": [
+                  21,
+                  20,
+                  21
+                ],
+                "daily_wet": 65,
+                "daily_dry": 62
+              },
+              {
+                "id": "week_5_plus",
+                "start": "2026-11-16",
+                "label": "С недели 5",
+                "wet": [
+                  0,
+                  0,
+                  0
+                ],
+                "dry": [
+                  26,
+                  26,
+                  26
+                ],
+                "daily_wet": 0,
+                "daily_dry": 78,
+                "provisional": true
+              }
+            ],
+            "dry_amounts_are_full_daily_totals": true,
+            "portion_note": "Порции взяты из вашего плана перехода. Это не индивидуальное ветеринарное назначение и не постоянная норма для растущего котёнка.",
+            "mention": "@palmette @LionZXY",
+            "food_transfer_policy": "add_full"
+          }
+      ports:
+      - name: acorn-health
+        containerPort: 8080
+      startupProbe:
+        httpGet:
+          path: /livez
+          port: acorn-health
+        periodSeconds: 5
+        failureThreshold: 24
+      livenessProbe:
+        httpGet:
+          path: /livez
+          port: acorn-health
+        periodSeconds: 10
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: acorn-health
+        periodSeconds: 10
+    - id: greenwich
+      uid: 10002
+      command:
+      - python3
+      - /app/greenwich/runner.py
+      route:
+        chat_id: -1004424243504
+        topic_id: 45
+        receives_updates: false
+        methods:
+        - getMe
+        - getChatMember
+        - sendMessage
+        - sendRichMessage
+        - pinChatMessage
+        - unpinChatMessage
+        - deleteMessage
+        allowed_user_ids: []
+      env:
+        PYTHONPATH: /app
+        BINS_PROPERTY_PATH: /etc/bins/property.json
+        BINS_STATE_PATH: /data/state.json
+        BINS_CACHE_PATH: /data/council-cache.json
+      persistence:
+        size: 128Mi
+        storageClassName: local-path
+      secretMounts:
+      - secretName: greenwich-bin-bot-property
+        mountPath: /etc/bins
+        items:
+        - key: property.json
+          path: property.json
+      startupProbe:
+        exec:
+          command:
+          - python3
+          - /app/greenwich/runner.py
+          - health
+        periodSeconds: 5
+        failureThreshold: 24
+      livenessProbe:
+        exec:
+          command:
+          - python3
+          - /app/greenwich/runner.py
+          - health
+        periodSeconds: 30
+      readinessProbe:
+        exec:
+          command:
+          - python3
+          - /app/greenwich/runner.py
+          - health
+        periodSeconds: 10

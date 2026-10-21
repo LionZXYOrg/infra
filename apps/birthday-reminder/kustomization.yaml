@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: birthday-reminder
+resources:
+- helmrelease-birthday-reminder.yaml
+- helmrepository-app.yaml
+- storage.yaml

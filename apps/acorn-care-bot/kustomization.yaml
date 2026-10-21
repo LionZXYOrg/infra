@@ -4,3 +4,9 @@ namespace: acorn-care-bot
 resources:
   - deployment.yaml
   - storage.yaml
+configMapGenerator:
+  - name: acorn-care-bot-config
+    envs:
+      - runtime.properties
+    files:
+      - config.json

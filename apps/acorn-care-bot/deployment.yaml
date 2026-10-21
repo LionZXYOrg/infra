@@ -3,8 +3,8 @@ kind: Deployment
 metadata:
   name: acorn-care-bot
 spec:
-  # Activation is a separate change after the token and state migration are ready.
-  replicas: 0
+  # Stop the old reminder scheduler before this activation reaches master.
+  replicas: 1
   revisionHistoryLimit: 2
   strategy:
     type: Recreate
@@ -26,34 +26,37 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
-      imagePullSecrets:
-        - name: ghcr-auth
       containers:
         - name: bot
-          image: ghcr.io/lionzxyorg/acorn-care-bot:sha-899c109293fa13796b91c03fa0a6c96d1cda267d
+          image: ghcr.io/lionzxyorg/acorn-care-bot:sha-839fa74c1513e41634e5bde685b4f6183fdd5508@sha256:f3dbbaed96afa65de2e3ab952c40fd61ff9a27beeb5e48b19b7ea42f3ba811c7
           imagePullPolicy: IfNotPresent
           env:
             - name: TELEGRAM_BOT_TOKEN_FILE
               value: /var/run/acorn/token
             - name: ACORN_CONFIG_PATH
-              value: /var/run/acorn/config.json
+              value: /etc/acorn/config.json
             - name: ACORN_STATE_PATH
               value: /data/state.json
             - name: TELEGRAM_CHAT_ID
               valueFrom:
-                secretKeyRef:
-                  name: acorn-care-bot
-                  key: chat-id
+                configMapKeyRef:
+                  name: acorn-care-bot-config
+                  key: TELEGRAM_CHAT_ID
             - name: TELEGRAM_TOPIC_ID
               valueFrom:
-                secretKeyRef:
-                  name: acorn-care-bot
-                  key: topic-id
+                configMapKeyRef:
+                  name: acorn-care-bot-config
+                  key: TELEGRAM_TOPIC_ID
             - name: TELEGRAM_ALLOWED_USER_IDS
               valueFrom:
-                secretKeyRef:
-                  name: acorn-care-bot
-                  key: allowed-user-ids
+                configMapKeyRef:
+                  name: acorn-care-bot-config
+                  key: TELEGRAM_ALLOWED_USER_IDS
+            - name: ACORN_FRESH_START
+              valueFrom:
+                configMapKeyRef:
+                  name: acorn-care-bot-config
+                  key: ACORN_FRESH_START
           ports:
             - name: health
               containerPort: 8080
@@ -88,8 +91,11 @@ spec:
           volumeMounts:
             - name: state
               mountPath: /data
-            - name: configuration
+            - name: token
               mountPath: /var/run/acorn
+              readOnly: true
+            - name: configuration
+              mountPath: /etc/acorn
               readOnly: true
             - name: tmp
               mountPath: /tmp
@@ -97,13 +103,18 @@ spec:
         - name: state
           persistentVolumeClaim:
             claimName: acorn-care-bot-state
-        - name: configuration
+        - name: token
           secret:
             secretName: acorn-care-bot
             defaultMode: 0440
             items:
               - key: bot-token
                 path: token
+        - name: configuration
+          configMap:
+            name: acorn-care-bot-config
+            defaultMode: 0444
+            items:
               - key: config.json
                 path: config.json
         - name: tmp

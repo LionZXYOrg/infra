@@ -8,8 +8,11 @@ resources:
   - secrets-source.yaml
   - infrastructure.yaml
   - immich.yaml
+  - obsidian.yaml
   - warden.yaml
   - homeassist.yaml
   - acorn-care-bot.yaml
+  - telegram-bot-suite.yaml
   - copyparty.yaml
   - transfersh.yaml
+  - birthday-reminder.yaml

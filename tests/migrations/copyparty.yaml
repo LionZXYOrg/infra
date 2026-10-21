@@ -13,3 +13,4 @@ source:
   path: /home/docker/app/copyparty
   observedAt: '2026-10-13'
   host: home.kulikov.uk
+phase: active

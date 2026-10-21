@@ -110,9 +110,10 @@ class FixtureTests(unittest.TestCase):
     def test_acorn_fixture_includes_only_suspended_flux_reference(self):
         cluster = self.source / 'clusters/home'
         cluster.mkdir(parents=True)
-        repository = Path(__file__).resolve().parents[1]
         application = cluster / 'acorn-care-bot.yaml'
-        application.write_bytes((repository / 'clusters/home/acorn-care-bot.yaml').read_bytes())
+        application.write_text('apiVersion: kustomize.toolkit.fluxcd.io/v1\nkind: Kustomization\n'
+                               'metadata: {name: acorn-care-bot, namespace: flux-system}\n'
+                               'spec: {suspend: true, path: ./apps/acorn-care-bot}\n')
         self.git('add', '.')
         fixture = self.fixture()
         isolated = fixture.infra_path / 'tests/isolated'
@@ -129,8 +130,12 @@ class FixtureTests(unittest.TestCase):
         cluster.mkdir(parents=True)
         (cluster / 'acorn-care-bot.yaml').write_text('spec: {suspend: false}\n')
         self.git('add', '.')
-        with self.assertRaisesRegex(ValueError, 'active application'):
-            self.fixture()
+        fixture = self.fixture()
+        isolated = fixture.infra_path / 'tests/isolated'
+        configuration = yaml.safe_load((isolated / 'kustomization.yaml').read_text())
+        self.assertNotIn('acorn-care-bot.yaml', configuration['resources'])
+        self.assertFalse((isolated / 'acorn-care-bot.yaml').exists())
+        self.assertFalse((isolated / 'apps').exists())
 
     def test_active_migration_cannot_enter_disposable_fixture(self):
         contracts = self.source / 'tests/migrations'
