@@ -40,7 +40,7 @@ spec:
             image:
               repository: tanq16/local-content-share
               tag: main
-              digest: sha256:bad35d70ce8a831955960ff7a05d773c780ace6df6a8584fb23d241027b8691e
+              digest: sha256:135f89c69456ec1ad104eba5b832bbe912e1fd0a9c1a9708a1e5e686762f314b
               pullPolicy: IfNotPresent
             resources:
               requests:
