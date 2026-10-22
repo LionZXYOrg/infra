@@ -45,6 +45,9 @@ spec:
               tag: latest
               digest: sha256:c670e2edab6639c5a9197658e2df114290617732624d662058e646c75b1d2cd0
               pullPolicy: IfNotPresent
+            args:
+            - --rproxy=-1
+            - --xff-src=10.42.0.0/16
             resources:
               requests:
                 cpu: 50m
