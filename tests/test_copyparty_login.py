@@ -31,10 +31,7 @@ class CopypartyLoginTests(unittest.TestCase):
             self.assertEqual(route['spec']['routes'][0]['match'], 'Host(`cp.kulikov.uk`)')
             marker = uuid.uuid4().hex
             username, password = 'fixture', uuid.uuid4().hex
-            configuration = work / 'configuration'
-            configuration.mkdir(mode=0o777)
-            configuration.chmod(0o777)
-            conf = configuration / 'fixture.conf'
+            conf = work / 'fixture.conf'
             conf.write_text('[global]\n  usernames\n  rproxy: 0\n  xff-src: 127.0.0.0/8\n'
                             '[accounts]\n  ' + username + ': ' + password + '\n'
                             '[/]\n  /w\n  accs:\n    r: ' + username + '\n')
@@ -91,7 +88,8 @@ connection.close()
                        '--user', str(security['runAsUser']) + ':' + str(security['runAsGroup']),
                        '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
                        '--tmpfs', '/w:uid=1000,gid=1000', '--tmpfs', '/state:uid=1000,gid=1000',
-                       '--mount', f'type=bind,src={configuration},dst=/cfg', container['image'], *args)
+                       '--tmpfs', '/cfg:uid=1000,gid=1000',
+                       '--mount', f'type=bind,src={conf},dst=/cfg/fixture.conf,readonly', container['image'], *args)
                 address = json.loads(docker('inspect', name))[0]['NetworkSettings']['Networks'][network]['IPAddress']
                 deadline = time.monotonic() + 45
                 while time.monotonic() < deadline:
