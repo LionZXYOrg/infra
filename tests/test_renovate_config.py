@@ -35,7 +35,8 @@ class RenovateConfigTests(unittest.TestCase):
         self.assertFalse(CONFIG["automerge"])
         self.assertIn("secrets/**", CONFIG["ignorePaths"])
         self.assertEqual(CONFIG["timezone"], "Europe/London")
-        self.assertGreater(CONFIG["prConcurrentLimit"], 0)
+        self.assertEqual(CONFIG["prConcurrentLimit"], 0)
+        self.assertEqual(CONFIG["prHourlyLimit"], 0)
 
     def test_all_custom_regexes_compile(self):
         for manager in CONFIG["customManagers"]:

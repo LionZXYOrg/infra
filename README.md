@@ -314,8 +314,8 @@ updates through pull requests. Install the
 An app installation or organization administrator must grant access; committing
 the configuration alone does not activate the bot.
 
-Renovate opens update PRs during 00:00–06:00 Europe/London time, with at most
-five open update PRs and no automatic merging. Updates cover pinned bootstrap
+Renovate opens update PRs during 00:00–06:00 Europe/London time, with no
+concurrent or hourly PR limits and no automatic merging. Updates cover pinned bootstrap
 tools, GitHub Actions, Python packages, Flux resources, application Helm charts,
 and Docker image tags **together with their SHA-256 digests**. The dependency
 dashboard lists updates that are waiting for review. Local application images
