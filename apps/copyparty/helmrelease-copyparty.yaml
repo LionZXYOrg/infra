@@ -43,7 +43,7 @@ spec:
             image:
               repository: copyparty/ac
               tag: latest
-              digest: sha256:c670e2edab6639c5a9197658e2df114290617732624d662058e646c75b1d2cd0
+              digest: sha256:b2054d65e05daa8982ca17c26b12b74315c0ce586a03ff9018a59c80731b9e19
               pullPolicy: IfNotPresent
             args:
             - --rproxy=-1
