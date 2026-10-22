@@ -31,20 +31,7 @@ class MigrationTests(unittest.TestCase):
             image = values()[part]['controllers']['main']['containers']['main']['image']
             self.assertEqual(image['repository'], f'ghcr.io/immich-app/immich-{part}')
             self.assertEqual(image['tag'], 'v3.3.5')
-            self.assertRegex(image['digest'], r'^sha256:[0-9a-f]{64}        self.assertFalse(values()['valkey']['enabled'])
-
-    @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
-    def test_media_capacity_and_logical_restore_prevent_old_snapshot_restore(self):
-        instructions = (APP / 'MIGRATION.md').read_text()
-        self.assertIn('tar -C /home/lionzxy/tmp-moving/immich -cpf - .', instructions)
-        self.assertIn('ssh root@192.168.1.109', instructions)
-        self.assertIn('pg_dump -U postgres -d immich -Fc', instructions)
-        self.assertIn('pg_restore -U postgres -d immich', instructions)
-        self.assertNotIn('tar -C /home/docker/app/immich/postgres', instructions)
-        restore = load('restore-db.yaml')['spec']
-        self.assertFalse(restore['automountServiceAccountToken'])
-        self.assertNotIn('restore-db.yaml', load('kustomization.yaml')['resources'])
-)
+            self.assertRegex(image['digest'], r'^sha256:[0-9a-f]{64}$')
         self.assertFalse(values()['valkey']['enabled'])
 
     @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
