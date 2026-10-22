@@ -28,7 +28,7 @@ spec:
     image:
       registry: docker.io
       repository: vaultwarden/server
-      tag: 1.37.2-alpine@sha256:d16a304c2476fd787634ddde2c00be8fdfa1a72539438c626ece3686b5b88ab4
+      tag: 1.37.4-alpine@sha256:19ea2b669945d842dadc3d500f2d6a795866a003330f59a47b9634658bae98bb
     replicas: 1
     resourceType: Deployment
     strategy:
