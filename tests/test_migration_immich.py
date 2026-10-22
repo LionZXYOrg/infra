@@ -28,7 +28,10 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(database['env']['PGDATA'], '/var/lib/postgresql/data')
         self.assertEqual(v['controllers']['redis']['containers']['main']['image']['repository'], 'valkey/valkey')
         for part in ['server', 'machine-learning']:
-            self.assertEqual(values()[part]['controllers']['main']['containers']['main']['image']['tag'], 'v3.3.1')
+            image = values()[part]['controllers']['main']['containers']['main']['image']
+            self.assertEqual(image['repository'], f'ghcr.io/immich-app/immich-{part}')
+            self.assertEqual(image['tag'], 'v3.3.5')
+            self.assertRegex(image['digest'], r'^sha256:[0-9a-f]{64}$')
         self.assertFalse(values()['valkey']['enabled'])
 
     @unittest.skipUnless((APP / 'MIGRATION.md').exists(), 'Migration completed')
