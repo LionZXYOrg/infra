@@ -36,7 +36,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.workflow['jobs']['validate']['name'], 'Validate')
         self.assertEqual(self.workflow['jobs']['deployment']['name'], 'Deployment')
         for job in self.workflow['jobs'].values():
-            self.assertEqual(job['runs-on'], 'ubuntu-24.04')
+            self.assertEqual(job['runs-on'], 'ubuntu-26.04')
             self.assertLessEqual(job['timeout-minutes'], 40)
         self.assertNotRegex(self.text, r'\$\{\{\s*secrets[.\[]')
 
