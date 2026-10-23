@@ -40,7 +40,7 @@ spec:
             image:
               repository: dutchcoders/transfer.sh
               tag: latest
-              digest: sha256:c78b20cda33f94086774e05729b1ac999b5fdb75c0b004b33ac0a083a20741be
+              digest: sha256:57c631b17bf824a655628181565fbc4c858a82f20e1ed8c0c962f5aea6ec3259
               pullPolicy: IfNotPresent
             resources:
               requests:
