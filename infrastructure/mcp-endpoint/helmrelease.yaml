@@ -78,7 +78,7 @@ spec:
       limits: null
       requests:
         cpu: 50m
-        memory: 128Mi
+        memory: null
     livenessProbe:
       httpGet:
         path: /healthz
@@ -149,7 +149,7 @@ spec:
         resources:
           requests:
             cpu: 10m
-            memory: 32Mi
+            memory: null
         volumeMounts:
           - name: gateway-configuration
             mountPath: /etc/nginx/nginx.conf

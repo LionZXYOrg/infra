@@ -144,6 +144,20 @@ class Deployment:
         if resources['items']:
             raise RuntimeError('Prepared application started workloads')
 
+    def verify_memory_resources(self):
+        for namespace in ('flux-system', 'traefik', 'cert-manager', 'demo', 'k3s-mcp'):
+            pods = json.loads(self.kube(['-n', namespace, 'get', 'pods', '-o', 'json']))['items']
+            if not pods:
+                raise RuntimeError('No pods available for memory resource assertion')
+            for pod in pods:
+                spec = pod['spec']
+                for container in spec.get('initContainers', []) + spec.get('containers', []):
+                    resources = container.get('resources') or {}
+                    for field in ('requests', 'limits'):
+                        # The API can normalize a null quantity to the string "0".
+                        if (resources.get(field) or {}).get('memory') not in (None, '0', 0):
+                            raise RuntimeError('Deployed container has memory requests or limits')
+
     def verify_migrations_suspended(self, fixture):
         self.verify_suspended_application(fixture, 'acorn-care-bot')
         if (fixture.infra_path / 'clusters/home/telegram-bot-suite.yaml').exists():
@@ -169,6 +183,17 @@ class Deployment:
         self.verify_fresh_cluster()
         version = tool_versions(Path(__file__).resolve().parents[2])['FLUX_VERSION']
         components = command(['flux', 'install', f'--version={version}', '--export'], timeout=180)
+        # Apply the production resource patch to the disposable Flux installation.
+        # Do not include gotk-sync.yaml, which points to the production repository.
+        configuration = yaml.safe_load((Path(__file__).resolve().parents[2] /
+            'clusters/home/flux-system/kustomization.yaml').read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            (work / 'components.yaml').write_bytes(components)
+            (work / 'kustomization.yaml').write_text(yaml.safe_dump({
+                'apiVersion': 'kustomize.config.k8s.io/v1beta1', 'kind': 'Kustomization',
+                'resources': ['components.yaml'], 'patches': configuration['patches']}))
+            components = command(['kubectl', 'kustomize', str(work)], timeout=60)
         self.kube(['apply', '--server-side', '-f', '-'], data=components)
         for name in ('source-controller', 'kustomize-controller', 'helm-controller', 'notification-controller'):
             self.kube(['-n', 'flux-system', 'rollout', 'status', f'deployment/{name}', '--timeout=300s'])
@@ -179,6 +204,8 @@ class Deployment:
         self.wait('kustomization', 'flux-system', 'flux-system')
         self.verify_ready()
         self.passed_check('sources-helm-kustomizations-certificate-demo-ready')
+        self.verify_memory_resources()
+        self.passed_check('memory-requests-and-limits-absent')
         self.verify_probe(b'isolated-value-one')
         self.passed_check('sops-initial-decryption')
         self.verify_https()
@@ -195,6 +222,7 @@ class Deployment:
         self.passed_check('sops-update-decryption')
         self.flux(['reconcile', 'kustomization', 'flux-system', '--with-source', '--timeout=5m'])
         self.verify_ready()
+        self.verify_memory_resources()
         self.verify_https()
         verify_endpoint(self, fixture)
         self.verify_no_production_resources()

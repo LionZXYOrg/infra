@@ -202,8 +202,23 @@ Use `http://127.0.0.1:8081` as its address.
 The control API listens only on the server itself.
 Existing Matter pairing and Thread credentials stay in their current storage.
 
-The four workloads reserve 1216 MiB of memory for scheduling.
-They can use more memory when the node has free capacity.
+## Memory resources
+
+Repository-managed workloads have no memory reservation or memory limit.
+The manifests use `memory: null` to remove memory requests and limits.
+Charts that reject null values omit the memory key instead.
+Without a request, Kubernetes can copy a memory limit into the request.
+Both fields stay unset to prevent that default.
+CPU requests, CPU limits, and storage requests keep their existing values.
+
+Flux controllers use a Kustomize patch so that generated manifests stay unchanged.
+The Telegram chart uses a Helm post-render patch for its fixed defaults and startup container.
+Tests inspect generated workloads to detect defaults that return after chart updates.
+K3s system components outside this repository keep their own resource configuration.
+
+This configuration does not reduce application RAM use.
+If total RAM use exceeds capacity, Kubernetes can evict applications or the kernel can terminate processes.
+Monitor actual RAM use and leave capacity for the operating system and K3s.
 
 ## Test changes
 

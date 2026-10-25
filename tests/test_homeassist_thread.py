@@ -1,6 +1,5 @@
 """Thread route learning uses the host interface without changing saved networks."""
 import os
-import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -113,25 +112,6 @@ class ThreadDeploymentTests(unittest.TestCase):
                       'The configured command must reach the intentionally missing radio')
         self.assertNotIn(b'must be set', output)
         self.assertNotIn(b'unrecognized option', output)
-
-    def test_home_automation_memory_requests_fit_the_shared_node_budget(self):
-        values = yaml.safe_load((APP / 'helmrelease-homeassist.yaml').read_text())['spec']['values']
-
-        def memory(container):
-            resources = container.get('resources', {})
-            self.assertNotIn('memory', resources.get('limits', {}))
-            value = resources.get('requests', {}).get('memory', '0Mi')
-            match = re.fullmatch(r'(\d+)(Mi|Gi)', value)
-            self.assertIsNotNone(match, 'The memory request must use Mi or Gi')
-            return int(match[1]) * (1024 if match[2] == 'Gi' else 1)
-
-        total = 0
-        for controller in values['controllers'].values():
-            running = sum(memory(c) for c in controller['containers'].values())
-            initialization = max([memory(c) for c in controller.get('initContainers', {}).values()] + [0])
-            total += max(running, initialization) * controller.get('replicas', 1)
-        # Leave capacity for the other services on the shared 8 GiB node.
-        self.assertLessEqual(total, 1280, 'Home automation must reserve at most 1.25 GiB')
 
     def test_border_router_owns_the_thread_radio_and_keeps_its_api_local(self):
         values = yaml.safe_load((APP / 'helmrelease-homeassist.yaml').read_text())['spec']['values']

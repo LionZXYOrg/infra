@@ -24,6 +24,47 @@ spec:
       retries: 0
   driftDetection:
     mode: enabled
+  # The pinned chart supplies worker defaults and hardcodes the seed resources.
+  postRenderers:
+  - kustomize:
+      patches:
+      - target:
+          kind: Deployment
+          name: telegram-bot-suite
+        patch: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: telegram-bot-suite
+          spec:
+            template:
+              spec:
+                initContainers:
+                - name: seed-gateway
+                  resources:
+                    requests:
+                      memory: null
+                    limits:
+                      memory: null
+                containers:
+                - name: acorn
+                  resources:
+                    requests:
+                      memory: null
+                    limits:
+                      memory: null
+                - name: greenwich
+                  resources:
+                    requests:
+                      memory: null
+                    limits:
+                      memory: null
+                - name: gateway
+                  resources:
+                    requests:
+                      memory: null
+                    limits:
+                      memory: null
   values:
     fullnameOverride: telegram-bot-suite
     replicas: 0
