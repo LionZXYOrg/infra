@@ -202,6 +202,9 @@ Use `http://127.0.0.1:8081` as its address.
 The control API listens only on the server itself.
 Existing Matter pairing and Thread credentials stay in their current storage.
 
+The four workloads reserve 1216 MiB of memory for scheduling.
+They can use more memory when the node has free capacity.
+
 ## Test changes
 
 ```bash
