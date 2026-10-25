@@ -61,7 +61,6 @@ spec:
             resources:
               requests:
                 cpu: 50m
-                memory: 1Gi
             probes:
               startup:
                 enabled: true
@@ -111,7 +110,6 @@ spec:
             resources:
               requests:
                 cpu: 50m
-                memory: 256Mi
             probes:
               startup:
                 enabled: true

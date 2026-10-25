@@ -75,9 +75,9 @@ spec:
     resources:
       requests:
         cpu: 100m
-        memory: 128Mi
+        memory: null
       limits:
-        memory: 512Mi
+        memory: null
     certificatesResolvers: {}
     persistence:
       enabled: false

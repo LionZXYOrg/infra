@@ -84,10 +84,10 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 32Mi
+              memory: null
             limits:
               cpu: 250m
-              memory: 128Mi
+              memory: null
           volumeMounts:
             - name: state
               mountPath: /data

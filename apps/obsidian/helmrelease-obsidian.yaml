@@ -70,11 +70,11 @@ spec:
     resources:
       requests:
         cpu: 50m
-        memory: 512Mi
+        memory: null
     initResources:
       requests:
         cpu: 10m
-        memory: 64Mi
+        memory: null
     livenessProbe:
       enabled: true
       initialDelaySeconds: 60

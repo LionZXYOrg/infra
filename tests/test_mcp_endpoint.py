@@ -96,6 +96,8 @@ class EndpointTests(unittest.TestCase):
         for container in self.pod['containers']:
             self.assertRegex(container['image'], r'@sha256:[a-f0-9]{64}$')
             self.assertNotIn('limits', container['resources'])
+            self.assertIsNone(container['resources']['requests'].get('memory'))
+            self.assertTrue(container['resources']['requests']['cpu'])
             security = container['securityContext']
             self.assertIs(security['allowPrivilegeEscalation'], False)
             self.assertIs(security['readOnlyRootFilesystem'], True)
