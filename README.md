@@ -190,6 +190,18 @@ This helper uses `secretctl.py` to encrypt a random password and its authenticat
 Commit and push the private module before updating its pointer in the public repository.
 The Deployment tests use disposable credentials and make sure that unauthorized requests and writes fail.
 
+## Matter over Thread
+
+Home Assistant uses the ZBT-2 radio through a separate OpenThread Border Router.
+The Sonoff radio stays with the Zigbee integration.
+The router restores the preferred Thread network from Home Assistant and keeps its data on a persistent volume.
+It stops if the saved network is missing or conflicts with the router configuration.
+
+After deployment, add the OpenThread Border Router integration in Home Assistant.
+Use `http://127.0.0.1:8081` as its address.
+The control API listens only on the server itself.
+Existing Matter pairing and Thread credentials stay in their current storage.
+
 ## Test changes
 
 ```bash

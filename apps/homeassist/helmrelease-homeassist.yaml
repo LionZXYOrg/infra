@@ -38,7 +38,7 @@ spec:
         forceRename: homeassist-homeassistant
         containers:
           main:
-            image:
+            image: &home-assistant-image
               repository: ghcr.io/home-assistant/home-assistant
               tag: 2026.10.2
               digest: sha256:33afb0659d786213264c2211f8d91c5fe87461c56eba6a3a546eb05fc71e89f4
@@ -88,6 +88,8 @@ spec:
         pod:
           nodeSelector:
             home.kulikov.uk/automation: 'true'
+          hostNetwork: true
+          dnsPolicy: ClusterFirstWithHostNet
       matter-server:
         type: deployment
         replicas: 1
@@ -95,7 +97,7 @@ spec:
         forceRename: homeassist-matter-server
         containers:
           main:
-            image:
+            image: &matter-server-image
               repository: ghcr.io/matter-js/matterjs-server
               tag: 1.5.2
               digest: sha256:47bc4d8354baf4775c1daf87b02b61123b1b61feeb3b2eadb17c610dbbda9a1c
@@ -146,6 +148,22 @@ spec:
               STORAGE_PATH: /data
               PRIMARY_INTERFACE: ens18
               LOG_LEVEL: info
+        initContainers:
+          network:
+            image: *matter-server-image
+            command:
+            - /usr/bin/bash
+            - /opt/matter-network/matter-network.sh
+            args:
+            - ens18
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+            securityContext:
+              privileged: true
+              runAsUser: 0
+              runAsGroup: 0
         pod:
           nodeSelector:
             home.kulikov.uk/automation: 'true'
@@ -220,6 +238,134 @@ spec:
             home.kulikov.uk/automation: 'true'
           hostNetwork: true
           dnsPolicy: ClusterFirstWithHostNet
+      otbr:
+        type: deployment
+        replicas: 1
+        strategy: Recreate
+        forceRename: homeassist-otbr
+        initContainers:
+          network:
+            image: *matter-server-image
+            command:
+            - /usr/bin/bash
+            - /opt/matter-network/matter-network.sh
+            args:
+            - ens18
+            - --router
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+            securityContext:
+              privileged: true
+              runAsUser: 0
+              runAsGroup: 0
+        containers:
+          main:
+            image:
+              repository: openthread/border-router
+              tag: latest
+              digest: sha256:71e034ab10c001e1f6c5ef272116d0298f9c597cab2e354d340667313cdb2b6d
+              pullPolicy: IfNotPresent
+            command:
+            - /usr/sbin/otbr-agent
+            args:
+            - -I
+            - wpan0
+            - -B
+            - ens18
+            - -d
+            - '4'
+            - -s
+            - --auto-attach=0
+            - --data-path
+            - /var/lib/thread
+            - --rest-listen-address
+            - 127.0.0.1
+            - --rest-listen-port
+            - '8081'
+            - spinel+hdlc+uart:///dev/ttyACM0?uart-baudrate=460800&uart-flow-control&uart-exclusive
+            - trel://ens18
+            securityContext:
+              privileged: true
+              runAsUser: 0
+              runAsGroup: 0
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: [/usr/sbin/ot-ctl, state]
+                  periodSeconds: 5
+                  failureThreshold: 60
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                    - /bin/bash
+                    - -c
+                    - 'case "$(/usr/sbin/ot-ctl state)" in *leader*|*router*|*child*) exit 0;; *) exit 1;; esac'
+                  periodSeconds: 10
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: [/usr/sbin/ot-ctl, state]
+                  periodSeconds: 30
+                  failureThreshold: 6
+          restore:
+            image: *home-assistant-image
+            command: [python3, /opt/matter-network/restore-thread.py]
+            env:
+              PYTHONDONTWRITEBYTECODE: '1'
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: [python3, /opt/matter-network/restore-thread.py, --ready]
+                  periodSeconds: 5
+                  failureThreshold: 60
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: [python3, /opt/matter-network/restore-thread.py, --ready]
+                  periodSeconds: 10
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: [python3, /opt/matter-network/restore-thread.py, --alive]
+                  periodSeconds: 30
+                  failureThreshold: 6
+        pod:
+          nodeSelector:
+            home.kulikov.uk/automation: 'true'
+          hostNetwork: true
+          dnsPolicy: ClusterFirstWithHostNet
     service:
       homeassistant:
         controller: homeassistant
@@ -253,6 +399,11 @@ spec:
           homeassistant:
             main:
             - path: /config
+          otbr:
+            restore:
+            - path: /restore/thread.datasets
+              subPath: .storage/thread.datasets
+              readOnly: true
       matter-server:
         type: persistentVolumeClaim
         existingClaim: homeassist-matter
@@ -267,6 +418,42 @@ spec:
           matter-hub:
             main:
             - path: /data
+      matter-network:
+        type: configMap
+        name: homeassist-matter-network
+        advancedMounts:
+          matter-server:
+            network:
+            - path: /opt/matter-network
+              readOnly: true
+          otbr:
+            network:
+            - path: /opt/matter-network
+              readOnly: true
+            restore:
+            - path: /opt/matter-network
+              readOnly: true
+      otbr:
+        type: persistentVolumeClaim
+        existingClaim: homeassist-otbr
+        advancedMounts:
+          otbr:
+            main:
+            - path: /var/lib/thread
+      thread-runtime:
+        type: emptyDir
+        advancedMounts:
+          otbr:
+            restore:
+            - path: /tmp
+      thread-tun:
+        type: hostPath
+        hostPath: /dev/net/tun
+        hostPathType: CharDevice
+        advancedMounts:
+          otbr:
+            main:
+            - path: /dev/net/tun
       dbus:
         type: hostPath
         hostPath: /run/dbus
@@ -285,7 +472,7 @@ spec:
         hostPath: /dev/serial/by-id/usb-Nabu_Casa_ZBT-2_E072A1DAA2D4-if00
         hostPathType: CharDevice
         advancedMounts:
-          homeassistant:
+          otbr:
             main:
             - path: /dev/ttyACM0
       radio-1:

@@ -1,6 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: homeassist
+configurations:
+- kustomizeconfig.yaml
+configMapGenerator:
+- name: homeassist-matter-network
+  files:
+  - matter-network.sh
+  - restore-thread.py
 resources:
 - helmrelease-homeassist.yaml
 - helmrepository-app.yaml

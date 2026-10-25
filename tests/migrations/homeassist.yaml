@@ -4,22 +4,26 @@ charts:
     version: 5.3.0
     url: https://bjw-s-labs.github.io/helm-charts/other/app-template-5.3.0.tgz
     sha256: 60a593576f2a4c6a93ef384d9206a269a06d6124e50c969a382b58fd473628a9
-workloads: 3
+workloads: 4
 secrets:
 - homeassist-config
 mounts:
 - /config
 - /data
 hostNetworkWorkloads:
+- homeassist-homeassistant
 - homeassist-matter-server
 - homeassist-matter-hub
+- homeassist-otbr
 hostPaths:
   homeassist-homeassistant:
   - /run/dbus
-  - /dev/serial/by-id/usb-Nabu_Casa_ZBT-2_E072A1DAA2D4-if00
   - /dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_501f34cba6a3ef118fdc44bd61ce3355-if00-port0
   homeassist-matter-server:
   - /run/dbus
+  homeassist-otbr:
+  - /dev/serial/by-id/usb-Nabu_Casa_ZBT-2_E072A1DAA2D4-if00
+  - /dev/net/tun
 source:
   path: /home/docker/app/homeassist
   observedAt: '2026-10-13'

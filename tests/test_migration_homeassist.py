@@ -37,8 +37,8 @@ class MigrationTests(unittest.TestCase):
 
     def test_radios_keep_the_paths_in_the_restored_configuration(self):
         persistence = values()['persistence']
-        for radio, device in [('radio-0', '/dev/ttyACM0'), ('radio-1', '/dev/ttyUSB0')]:
-            self.assertEqual(persistence[radio]['advancedMounts']['homeassistant']['main'], [{'path': device}])
+        self.assertEqual(persistence['radio-0']['advancedMounts']['otbr']['main'], [{'path': '/dev/ttyACM0'}])
+        self.assertEqual(persistence['radio-1']['advancedMounts']['homeassistant']['main'], [{'path': '/dev/ttyUSB0'}])
 
     def test_matter_uses_the_lan_interface_on_the_target_host(self):
         controller = values()['controllers']['matter-server']
@@ -47,7 +47,7 @@ class MigrationTests(unittest.TestCase):
 
     def test_activation_keeps_all_restored_claims_and_retention(self):
         claims = {d['metadata']['name']: d for d in yaml.safe_load_all((APP / 'storage.yaml').read_text())}
-        expected = {'homeassist-config': '10Gi', 'homeassist-matter': '2Gi', 'homeassist-hub': '2Gi'}
+        expected = {'homeassist-config': '10Gi', 'homeassist-matter': '2Gi', 'homeassist-hub': '2Gi', 'homeassist-otbr': '1Gi'}
         self.assertEqual(set(claims), set(expected))
         for name, size in expected.items():
             claim = claims[name]

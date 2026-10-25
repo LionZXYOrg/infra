@@ -65,7 +65,7 @@ class RenovateConfigTests(unittest.TestCase):
         )
         examples = {
             "apps/immich/helmrelease-immich.yaml": 2,
-            "apps/homeassist/helmrelease-homeassist.yaml": 3,
+            "apps/homeassist/helmrelease-homeassist.yaml": 4,
             "apps/birthday-reminder/helmrelease-birthday-reminder.yaml": 2,
         }
         for path, expected in examples.items():
