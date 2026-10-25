@@ -96,6 +96,23 @@ class ThreadDeploymentTests(unittest.TestCase):
             if argument.startswith('--'):
                 self.assertIn(argument.split('=')[0].encode(), result.stdout + result.stderr)
 
+    @unittest.skipUnless(shutil.which('docker'), 'Docker is needed for the configured OTBR startup test')
+    def test_configured_border_router_command_reaches_radio_initialization(self):
+        values = yaml.safe_load((APP / 'helmrelease-homeassist.yaml').read_text())['spec']['values']
+        main = values['controllers']['otbr']['containers']['main']
+        image = main['image']
+        reference = image['repository'] + '@' + image['digest']
+        # No host network, USB, or credentials. The missing radio is the expected stop.
+        result = subprocess.run(['docker', 'run', '--rm', '--network', 'none',
+                                 '--entrypoint', main['command'][0], reference, *main['args']],
+                                capture_output=True, timeout=30)
+        output = result.stdout + result.stderr
+        self.assertNotEqual(result.returncode, 0, 'A container without the radio must stop')
+        self.assertIn(b'No such file or directory', output,
+                      'The configured command must reach the intentionally missing radio')
+        self.assertNotIn(b'must be set', output)
+        self.assertNotIn(b'unrecognized option', output)
+
     def test_border_router_owns_the_thread_radio_and_keeps_its_api_local(self):
         values = yaml.safe_load((APP / 'helmrelease-homeassist.yaml').read_text())['spec']['values']
         controller = values['controllers']['otbr']
