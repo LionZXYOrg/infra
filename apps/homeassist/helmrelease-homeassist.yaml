@@ -278,6 +278,10 @@ spec:
             - '4'
             - -s
             - --auto-attach=0
+            - --vendor-name
+            - OpenThread
+            - --model-name
+            - BorderRouter
             - --data-path
             - /var/lib/thread
             - --rest-listen-address
