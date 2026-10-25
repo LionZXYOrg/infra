@@ -72,6 +72,7 @@ class DeploymentTests(unittest.TestCase):
                 patch.object(self.runner, 'verify_https') as https, \
                 patch.object(deployment, 'verify_endpoint') as mcp, \
                 patch.object(self.runner, 'verify_no_production_resources') as isolated, \
+                patch.object(self.runner, 'verify_memory_resources') as memory, \
                 patch.object(self.runner, 'flux') as flux, \
                 patch.object(deployment, 'command', return_value=b'components'):
             report = self.runner.run(fixture)
@@ -82,8 +83,31 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(https.call_count, 2)
         self.assertEqual(mcp.call_count, 2)
         self.assertEqual(isolated.call_count, 2)
+        self.assertEqual(memory.call_count, 2)
+        self.assertIn('memory-requests-and-limits-absent', report['passed'])
         self.assertEqual([call.args[0][2] for call in flux.call_args_list], ['cluster-secrets', 'flux-system'])
         self.assertIn('repeat-reconciliation', report['passed'])
+
+    def test_deployed_memory_resources_allow_absent_null_and_normalized_zero(self):
+        for value in ({}, {'memory': None}, {'memory': '0'}):
+            resources = {'requests': {'cpu': '10m', **value}, 'limits': {'cpu': '250m', **value}}
+            pods = {'items': [{'spec': {'containers': [{'resources': resources}],
+                                      'initContainers': [{'resources': resources}]}}]}
+            with self.subTest(value=value), patch.object(self.runner, 'kube', return_value=json.dumps(pods)) as kube:
+                self.runner.verify_memory_resources()
+                self.assertEqual(kube.call_count, 5)
+
+    def test_deployed_memory_resources_reject_defaults_and_empty_namespaces(self):
+        for kind in ('containers', 'initContainers'):
+            for field in ('requests', 'limits'):
+                pods = {'items': [{'spec': {kind: [{'resources': {field: {'memory': '128Mi'}}}]}}]}
+                with self.subTest(kind=kind, field=field), \
+                        patch.object(self.runner, 'kube', return_value=json.dumps(pods)), \
+                        self.assertRaisesRegex(RuntimeError, 'memory requests or limits'):
+                    self.runner.verify_memory_resources()
+        with patch.object(self.runner, 'kube', return_value='{"items": []}'), \
+                self.assertRaisesRegex(RuntimeError, 'No pods'):
+            self.runner.verify_memory_resources()
 
     def test_prepared_migration_must_be_suspended_without_pods_or_releases(self):
         directory = self.work / 'tests/migrations'
