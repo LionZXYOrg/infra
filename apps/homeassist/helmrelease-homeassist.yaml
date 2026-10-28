@@ -260,7 +260,7 @@ spec:
             image:
               repository: openthread/border-router
               tag: latest
-              digest: sha256:71e034ab10c001e1f6c5ef272116d0298f9c597cab2e354d340667313cdb2b6d
+              digest: sha256:c14cd3861030e1364d2b241a2302f350a6f64d7b215a8477c02603e546e49409
               pullPolicy: IfNotPresent
             command:
             - /usr/sbin/otbr-agent
