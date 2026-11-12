@@ -7,7 +7,7 @@ spec:
   interval: 1h
   url: https://github.com/LionZXYOrg/acorn-care-bot
   ref:
-    commit: 786f4974e399642bb49063b5711f1d91e5e91b52
+    commit: 084a5c71e0902c5d4338485b58a07db7b7372490
   ignore: |
     /*
     !/deploy
