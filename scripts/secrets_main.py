@@ -16,6 +16,7 @@ import tempfile
 PUBLIC_REPOSITORY = 'LionZXYOrg/infra'
 PRIVATE_REPOSITORY = 'git@github.com:LionZXYOrg/infra-secrets.git'
 CONTEXT = 'Secrets main'
+ACTIONS_BOT_ID = 41898282
 SHA = re.compile(r'[0-9a-f]{40}')
 MODULE_URLS = {'https://github.com/LionZXYOrg/infra-secrets.git',
                'https://github.com/LionZXYOrg/infra-secrets',
@@ -164,15 +165,48 @@ def status(head, state, description, request=api):
     request(f'repos/{PUBLIC_REPOSITORY}/statuses/{head}', body=body)
 
 
-def audit(prs, read_main, *, publish=False, request=api):
-    def report(head, state, description):
-        if publish:
-            status(head, state, description, request)
+def last_status(head, request):
+    path = f'repos/{PUBLIC_REPOSITORY}/commits/{head}/statuses?per_page=100'
+    records = request(path)
+    if not isinstance(records, list) or not all(isinstance(item, dict) for item in records):
+        raise AuditError('The previous status is unavailable.')
+    # GitHub returns the newest status first. Only reuse a result from GitHub Actions.
+    for item in records:
+        if item.get('context') == CONTEXT:
+            creator = item.get('creator') or {}
+            if (isinstance(creator, dict) and creator.get('id') == ACTIONS_BOT_ID
+                    and creator.get('login') == 'github-actions[bot]'):
+                return item.get('state'), item.get('description')
+            break
+    return None
 
-    for pr in prs:
-        report(pr['head'], 'pending', 'Compare the secrets commit with private main.')
+
+def audit(prs, read_main, *, publish=False, request=api):
+    previous = {}
+
+    def report(head, state, description):
+        if not publish or previous.get(head) == (state, description):
+            return True
+        try:
+            status(head, state, description, request)
+        except AuditError:
+            print(f'Secrets main could not publish {state} for public commit {head[:12]}.')
+            return False
+        previous[head] = state, description
+        return True
+
     if not prs:
         return {'success': 0, 'failure': 0, 'error': 0}
+    if publish:
+        for pr in prs:
+            head = pr['head']
+            try:
+                previous[head] = last_status(head, request)
+            except AuditError:
+                # If the status lookup fails, publish the newly calculated result.
+                previous[head] = None
+            if previous[head] is None:
+                report(head, 'pending', 'Compare the secrets commit with private main.')
     try:
         commits = read_main()
     except AuditError:
@@ -191,7 +225,8 @@ def audit(prs, read_main, *, publish=False, request=api):
             state, message = 'failure', str(error)
         except AuditError:
             state, message = 'error', 'The public metadata could not be read. Retry this audit.'
-        report(pr['head'], state, message)
+        if not report(pr['head'], state, message):
+            state = 'error'
         counts[state] += 1
     return counts
 
