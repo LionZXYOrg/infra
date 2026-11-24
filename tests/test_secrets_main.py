@@ -144,12 +144,19 @@ class HistoryTests(unittest.TestCase):
 
 
 class StatusTests(unittest.TestCase):
+    @staticmethod
+    def previous(state, description):
+        return {'context': guard.CONTEXT, 'state': state, 'description': description,
+                'creator': {'id': guard.ACTIONS_BOT_ID, 'login': 'github-actions[bot]'}}
+
     def test_policy_results_attach_to_each_exact_pr_head(self):
         calls = []
         def request(path, **kwargs):
             if kwargs:
                 calls.append((path, kwargs['body']))
                 return {}
+            if '/statuses?' in path:
+                return []
             if '/trees/' in path:
                 return metadata(pin=PIN if path.endswith(HEAD) else 'f' * 40)[0]
             return metadata()[1]
@@ -166,8 +173,65 @@ class StatusTests(unittest.TestCase):
         with self.assertRaises(guard.AuditError):
             guard.audit([{'head': HEAD}], Mock(side_effect=guard.AuditError('fixed failure')),
                         publish=True, request=request)
-        states = [call.kwargs['body']['state'] for call in request.call_args_list]
+        states = [call.kwargs['body']['state'] for call in request.call_args_list if 'body' in call.kwargs]
         self.assertEqual(states, ['pending', 'error'])
+
+    def test_repeated_audit_rechecks_ancestry_and_only_publishes_changes(self):
+        result = self.previous('success', 'The secrets commit belongs to private main.')
+        published = []
+        trees = []
+
+        def request(path, *, body=None):
+            if body:
+                published.append(body['state'])
+            elif '/statuses?' in path:
+                return [result]
+            elif '/trees/' in path:
+                trees.append(path)
+                return metadata()[0]
+            else:
+                return metadata()[1]
+
+        rows = [{'head': HEAD}]
+        read_main = Mock(side_effect=[{PIN}, set(), guard.AuditError('unavailable')])
+        self.assertEqual(guard.audit(rows, read_main, publish=True, request=request)['success'], 1)
+        self.assertEqual(published, [])
+        self.assertEqual(guard.audit(rows, read_main, publish=True, request=request)['failure'], 1)
+        self.assertEqual(published, ['failure'])
+        with self.assertRaises(guard.AuditError):
+            guard.audit(rows, read_main, publish=True, request=request)
+        self.assertEqual(published, ['failure', 'error'])
+        self.assertEqual(len(trees), 2)
+        self.assertEqual(read_main.call_count, 3)
+
+    def test_unpublishable_head_does_not_block_the_next_head(self):
+        published = []
+
+        def request(path, *, body=None):
+            if body:
+                if path.endswith(HEAD):
+                    raise guard.AuditError('The status cannot be added.')
+                published.append((path, body['state']))
+            elif '/statuses?' in path:
+                return []
+            elif '/trees/' in path:
+                return metadata()[0]
+            else:
+                return metadata()[1]
+
+        counts = guard.audit([{'head': HEAD}, {'head': OTHER_HEAD}], lambda: {PIN},
+                             publish=True, request=request)
+        self.assertEqual(counts, {'success': 1, 'failure': 0, 'error': 1})
+        self.assertEqual([state for _, state in published], ['pending', 'success'])
+        self.assertTrue(all(path.endswith(OTHER_HEAD) for path, _ in published))
+
+    def test_newer_untrusted_status_cannot_hide_behind_an_older_actions_status(self):
+        trusted = self.previous('success', 'The secrets commit belongs to private main.')
+        other = dict(trusted, creator={'id': 1, 'login': 'someone-else'})
+        self.assertIsNone(guard.last_status(HEAD, Mock(return_value=[other, trusted])))
+        unrelated = dict(other, context='unrelated')
+        self.assertEqual(guard.last_status(HEAD, Mock(return_value=[unrelated, trusted])),
+                         ('success', trusted['description']))
 
     def test_public_read_failure_posts_error(self):
         def request(path, **kwargs):
