@@ -277,11 +277,11 @@ chart-major upgrades behind human review and backups.
 
 This patch adds a Flux Kustomization and a namespace with a single gateway Deployment, Service,
 PVC, and Traefik IngressRoute. It uses `node:22.13.1-bookworm-slim`, installs pinned
-`simlock@0.6.0` from npm in an init container, and exposes port 4700 only via Traefik.
+`simlock@0.8.0` from npm in an init container, and exposes port 4700 only via Traefik.
 No Android SDK, emulator, or `/dev/kvm` is installed on the manager.
 
 Before applying, consider replacing the runtime tag with a **digest-pinned**, prebuilt image
-containing simlock@0.6.0. The init-container npm download is suitable for testing but
+containing simlock@0.8.0. The init-container npm download is suitable for testing but
 requires public npm registry reachability on every pod replacement.
 
 After applying the patch and merging it into master (Flux deploys automatically):
@@ -325,12 +325,12 @@ The gateway state (including its token records) persists in the PVC.
 
 ### On each worker: Pi 5 and Edge2
 
-Install Node.js >=22.13 and simlock@0.6.0, and separately validate a working native ARM64
+Install Node.js >=22.13 and simlock@0.8.0, and separately validate a working native ARM64
 Android Emulator + platform-tools before joining. The previous single-board instructions
 cover that experimental emulator installation. Then:
 
 ```bash
-npm install -g simlock@0.6.0
+npm install -g simlock@0.8.0
 simlock doctor
 simlock config set http.enabled false
 simlock config set android.emulator.headless true
@@ -375,4 +375,4 @@ can boot ARM64 Android emulators.
 - This is an experimental image-on-start gateway deployment; for production,
   build and push a pinned immutable image and update the Deployment.
 - `simlock --gateway` (not `mode: gateway`) is the current mode selector.
-- If worker logs show `incompatible`, ensure gateway and both workers run the same Simlock version.
+- A 0.6.0 worker cannot serve leases through a 0.8.0 gateway. Upgrade both ends before you resume leases.
