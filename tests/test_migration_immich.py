@@ -30,7 +30,7 @@ class MigrationTests(unittest.TestCase):
         for part in ['server', 'machine-learning']:
             image = values()[part]['controllers']['main']['containers']['main']['image']
             self.assertEqual(image['repository'], f'ghcr.io/immich-app/immich-{part}')
-            self.assertEqual(image['tag'], 'v3.3.5')
+            self.assertEqual(image['tag'], 'v3.4.2')
             self.assertRegex(image['digest'], r'^sha256:[0-9a-f]{64}$')
         self.assertFalse(values()['valkey']['enabled'])
 
