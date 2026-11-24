@@ -5,9 +5,9 @@ source:
 charts:
   warden:
     chart: vaultwarden
-    version: 0.46.3
-    url: https://github.com/guerzon/vaultwarden/releases/download/v0.46.3/vaultwarden-0.46.3.tgz
-    sha256: 98ee294dda6a725d5584f7e1499c3af27b48eeed56286c556a772b9c149ab72a
+    version: 0.46.4
+    url: https://github.com/guerzon/vaultwarden/releases/download/v0.46.4/vaultwarden-0.46.4.tgz
+    sha256: 53cdab355ab864a99325212cfcc8bdc4b74ff03c2e2d02df60b6ecb67137832d
 workloads: 1
 secrets:
 - warden-config
