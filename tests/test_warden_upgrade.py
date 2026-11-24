@@ -138,7 +138,7 @@ class WardenUpgradeTests(unittest.TestCase):
 
                 for name in names[1:]:
                     base = start(name, container['image'])
-                    self.assertEqual(api(base, '/api/version'), '1.37.4')
+                    self.assertEqual(api(base, '/api/version'), '1.37.5')
                     self.assertIn(b'<html', request(base, '/')[1].lower())
                     token = authenticate(base)
                     saved = api(base, path, token=token)
